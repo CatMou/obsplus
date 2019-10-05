@@ -16,7 +16,7 @@ from obsplus.utils import apply_to_files_or_skip, get_instances
 # attributes from channel to extract
 
 stations_to_df = DataFrameExtractor(
-    Channel, STATION_COLUMNS, utc_columns=("start_date", "end_date")
+    Channel, STATION_COLUMNS, time_columns=("start_date", "end_date")
 )
 
 

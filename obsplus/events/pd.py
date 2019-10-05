@@ -13,6 +13,7 @@ import pandas as pd
 import obsplus
 from obsplus.constants import (
     EVENT_COLUMNS,
+    EVENT_DTYPES,
     PICK_COLUMNS,
     PICK_DTYPES,
     AMPLITUDE_COLUMNS,
@@ -34,7 +35,10 @@ from obsplus import get_preferred
 # -------------------- event extractors
 
 events_to_df = DataFrameExtractor(
-    ev.Event, required_columns=EVENT_COLUMNS, utc_columns=("time",)
+    ev.Event,
+    required_columns=EVENT_COLUMNS,
+    time_columns=("time",),
+    dtypes=EVENT_DTYPES,
 )
 
 
@@ -109,16 +113,22 @@ def _get_used_stations(origin: ev.Origin, pid):
 @events_to_df.extractor
 def _get_origin_quality(eve: ev.Event):
     """ get information from origin quality """
-    # ensure resource_ids in arrivals don't point to picks that dont exist
+
+    def _ensure_amps_linked_to_picks(eve,):
+        """ Make sure the picks exists the amplitudes point to. """
+        for pick in eve.picks:
+            pick.resource_id.set_referred_object(pick)
+        pick_dict = {str(p.resource_id): p for p in eve.picks}
+        apid = {str(ar.pick_id): ar for ar in ori.arrivals}
+        assert set(apid).issubset(set(pick_dict)), "arrivals link to non-existent picks"
+        return pick_dict
+
+    pick_dict = _ensure_amps_linked_to_picks(eve)
+
+    # TODO Clean this up! Start here!
     ori = get_preferred(eve, "origin", init_empty=True)
 
-    for pick in eve.picks:
-        pick.resource_id.set_referred_object(pick)
-    pick_dict = {str(p.resource_id): p for p in eve.picks}
-    apid = {str(ar.pick_id): ar for ar in ori.arrivals}
-    assert set(apid).issubset(set(pick_dict)), "arrivals link to non-existent picks"
-
-    # desired attrs
+    # {desired attr: default value}
     qual_set = {
         "standard_error",
         "associated_phase_count",
@@ -129,15 +139,15 @@ def _get_origin_quality(eve: ev.Event):
     # objects to pull from
     qual = ori.quality
     uncert = ori.origin_uncertainty
-    duncert = ori.depth_errors
+    depth_uncert = ori.depth_errors
     # out dict to populate
     out = {}
     for obsject, attrs in ((qual, qual_set), (uncert, uncert_set)):
         obsject = obsject or {}
         out.update(getattrs(obsject, attrs))
 
-    if duncert is not None:
-        out["vertical_uncertainty"] = duncert.get("uncertainty", np.nan)
+    if depth_uncert is not None:
+        out["vertical_uncertainty"] = depth_uncert.get("uncertainty", np.nan)
     else:
         out["vertical_uncertainty"] = np.nan
 
@@ -145,6 +155,7 @@ def _get_origin_quality(eve: ev.Event):
     out["s_phase_count"] = _get_phase_count(ori, "S")
     out["p_pick_count"] = _get_pick_count("P", pick_dict)
     out["s_pick_count"] = _get_pick_count("S", pick_dict)
+    out["used_phase_count"] = out["p_phase_count"] + out["s_phase_count"]
 
     # get station count and concat'ed string of stations
     arrivals = ori.arrivals
@@ -240,7 +251,7 @@ def _bank_to_catalog(bank):
 
 
 picks_to_df = DataFrameExtractor(
-    ev.Pick, PICK_COLUMNS, utc_columns=("time", "event_time")
+    ev.Pick, PICK_COLUMNS, time_columns=("time", "event_time")
 )
 
 
@@ -272,7 +283,7 @@ def _pick_extractor(pick):
 
 # still thinking about the best way to go about combining these...
 arrivals_to_df = DataFrameExtractor(
-    ev.Arrival, ARRIVAL_COLUMNS, utc_columns=("event_time",)
+    ev.Arrival, ARRIVAL_COLUMNS, time_columns=("event_time",)
 )
 
 
@@ -331,7 +342,7 @@ def _arrivals_extractor(arr):
 # It seems like there is enough similarity between amplitudes_to_df and
 # picks_to_df that there should be some way to combine them...
 amplitudes_to_df = DataFrameExtractor(
-    ev.Amplitude, AMPLITUDE_COLUMNS, utc_columns=("event_time",)
+    ev.Amplitude, AMPLITUDE_COLUMNS, time_columns=("event_time",)
 )
 
 
@@ -371,7 +382,7 @@ def _amplitudes_extractor(amp):
 
 # still thinking about the best way to go about combining these...
 station_magnitudes_to_df = DataFrameExtractor(
-    ev.StationMagnitude, STATION_MAGNITUDE_COLUMNS, utc_columns=("event_time",)
+    ev.StationMagnitude, STATION_MAGNITUDE_COLUMNS, time_columns=("event_time",)
 )
 
 
@@ -415,7 +426,7 @@ def _station_magnitudes_extractor(sm):
 
 # still thinking about the best way to go about combining these...
 magnitudes_to_df = DataFrameExtractor(
-    ev.Magnitude, MAGNITUDE_COLUMNS, utc_columns=("event_time",)
+    ev.Magnitude, MAGNITUDE_COLUMNS, time_columns=("event_time",)
 )
 
 

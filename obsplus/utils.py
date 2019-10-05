@@ -221,8 +221,8 @@ def order_columns(
     -------
     pd.DataFrame
     """
-    if df.empty:
-        return pd.DataFrame(columns=required_columns)
+    # if df.empty:
+    #     return pd.DataFrame(columns=required_columns)
     # make sure required columns are there
     column_set = set(df.columns)
     extra_cols = sorted(list(column_set - set(required_columns)))
@@ -546,7 +546,7 @@ def get_seed_id_series(df: pd.DataFrame, null_codes=NULL_SEED_CODES) -> pd.Serie
     Any "nullish" values (defined by the parameter null_codes) will be
     replaced with an empty string.
 
-    Parameters
+    6Parameters
     ----------
     df
         Any Dataframe that has columns with str dtype named:

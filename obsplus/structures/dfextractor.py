@@ -65,7 +65,7 @@ class DataFrameExtractor(UserDict):
     pass_dataframe
         If True, return dataframes passed to DataFrameExtractor.__call__.
         This allows the DataFrameExtractor to be idempotent.
-    utc_columns
+    time_columns
         Columns that are UTCDateTime objects. Will correctly handle
         UTCDateTime-able objects (like date-time strings, floats, etc).
     """
@@ -76,14 +76,14 @@ class DataFrameExtractor(UserDict):
         required_columns: Sequence[str] = None,
         dtypes=None,
         pass_dataframe=True,
-        utc_columns=None,
+        time_columns=None,
     ):
         super().__init__()
         self.cls = cls
         self._func = singledispatch(self._base_call)
         self._base_required_columns = required_columns
         self._dtypes = [dtypes] if dtypes is not None else []
-        self.utc_columns = utc_columns or ()
+        self.utc_columns = time_columns or ()
         if pass_dataframe:
             self._func.register(pd.DataFrame)(_pass_through_dataframe)
 

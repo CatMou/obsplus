@@ -275,6 +275,13 @@ class TestReadIndexQueries:
             assert len(df1) == len(df2)
             assert df1.reset_index(drop=True).equals(df2.reset_index(drop=True))
 
+    def test_index_time_columns(self, ebank):
+        """ Ensure the time columns are pandas datetimes.  """
+        df = ebank.read_index()
+        # now select on datetime
+        sub = df.select_dtypes([np.datetime64])
+        assert "time" in sub.columns
+
 
 class TestGetEvents:
     """ tests for pulling events out of the bank """

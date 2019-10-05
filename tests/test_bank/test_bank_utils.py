@@ -49,7 +49,6 @@ class TestStreamPathStructure:
         return _summarize_trace(waveform_cache_trace, path_struct=struct_string)
 
     # general tests
-
     def test_output(self, output):
         """ test that a dict was returned with required keys when bank
         is called"""
@@ -74,20 +73,6 @@ class TestEventPathStructure:
         assert _summarize_event(ev)["path"] == expected
 
 
-#
-# class TestInventoryStructure:
-#     """ test for stations path """
-#
-#     def test_basic(self):
-#         path = PathStructure()
-#         # get an stations with 1 channel
-#         inv = obspy.read_inventory()
-#         chan = inv.get_contents()['channel'][0]
-#         n, s, l, c = chan.split('.')
-#         inv2 = inv.select(network=n, station=s, location=l, channel=c)
-#         #
-#         out_path = path(inv2)
-#
 class TestReadStream:
     """ test the read waveforms function """
 

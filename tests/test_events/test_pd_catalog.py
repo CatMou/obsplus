@@ -29,6 +29,7 @@ from obsplus.constants import (
     AMPLITUDE_COLUMNS,
     STATION_MAGNITUDE_COLUMNS,
     MAGNITUDE_COLUMNS,
+    EVENT_DTYPES,
 )
 
 from obsplus.utils import getattrs, get_seed_id_series
@@ -71,7 +72,7 @@ def pick_generator(scnls):
     return picks
 
 
-def arr_generator(picks):
+def make_arrivals(picks):
     counter = 1
     params = {"phase": "P"}
     arrivals = []
@@ -100,7 +101,7 @@ def arr_generator(picks):
     return arrivals
 
 
-def amp_generator(scnls=None, picks=None):
+def make_amplitudes(scnls=None, picks=None):
     counter = 1
     amps = []
     scnls = scnls or []
@@ -235,7 +236,12 @@ class TestCat2Df:
     @pytest.fixture(scope="class")
     def df(self, test_catalog):
         """ call the catalog2df method, return result"""
-        return events_to_df(test_catalog.copy())
+        cat = test_catalog.copy()
+        try:
+            return events_to_df(cat)
+        except:
+            breakpoint()
+            events_to_df(cat)
 
     # tests
     def test_method_exists(self, test_catalog):
@@ -273,6 +279,11 @@ class TestCat2Df:
         still a column. """
         cols = df.columns
         assert "event_id" in cols
+
+    def test_column_datatypes(self, df):
+        """ Ensure the expected columns are numpy datetime objects. """
+        expected = df.astype(EVENT_DTYPES).dtypes
+        assert (expected == df.dtypes).all()
 
 
 class TestCat2DfPreferreds:
@@ -619,14 +630,14 @@ class TestReadArrivals:
         eve1.preferred_origin_id = eve1.origins[0].resource_id
         picks = pick_generator(scnls1)
         eve1.picks = picks
-        eve1.preferred_origin().arrivals = arr_generator(picks)
+        eve1.preferred_origin().arrivals = make_arrivals(picks)
         scnls2 = ["UK.STA3..HHZ", "UK.STA4..HHZ", "UK.STA5..HHZ"]
         eve2 = ev.Event()
         eve2.origins.append(ev.Origin(time=UTCDateTime()))
         eve2.preferred_origin_id = eve2.origins[0].resource_id
         picks = pick_generator(scnls2)
         eve2.picks = picks
-        eve2.preferred_origin().arrivals = arr_generator(picks)
+        eve2.preferred_origin().arrivals = make_arrivals(picks)
         cat.events = [eve1, eve2]
         return cat
 
@@ -710,11 +721,11 @@ class TestReadAmplitudes:
         eve1 = ev.Event()
         eve1.origins.append(ev.Origin(time=UTCDateTime()))
         eve1.picks = pick_generator(scnls1)
-        eve1.amplitudes = amp_generator(picks=eve1.picks)
+        eve1.amplitudes = make_amplitudes(picks=eve1.picks)
         scnls2 = ["UK.STA3..HHZ", "UK.STA4..HHZ", "UK.STA5..HHZ"]
         eve2 = ev.Event()
         eve2.origins.append(ev.Origin(time=UTCDateTime()))
-        eve2.amplitudes = amp_generator(scnls=scnls2)
+        eve2.amplitudes = make_amplitudes(scnls=scnls2)
         cat.events = [eve1, eve2]
         return cat
 
@@ -806,7 +817,7 @@ class TestReadStationMagnitudes:
         cat = ev.Catalog()
         eve1 = ev.Event()
         eve1.origins.append(ev.Origin(time=UTCDateTime()))
-        eve1.amplitudes = amp_generator(scnls1)
+        eve1.amplitudes = make_amplitudes(scnls1)
         eve1.station_magnitudes = sm_generator(amplitudes=eve1.amplitudes)
         scnls2 = ["UK.STA3..HHZ", "UK.STA4..HHZ", "UK.STA5..HHZ"]
         eve2 = ev.Event()
