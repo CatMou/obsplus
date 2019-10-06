@@ -74,7 +74,7 @@ EVENT_DTYPES = OrderedDict(
     depth=float,
     magnitude=float,
     event_description=str,
-    associated_phase_count=int,
+    associated_phase_count=float,
     azimuthal_gap=float,
     event_id=str,
     horizontal_uncertainty=float,
@@ -82,14 +82,14 @@ EVENT_DTYPES = OrderedDict(
     moment_magnitude=float,
     duration_magnitude=float,
     magnitude_type=str,
-    p_phase_count=int,
-    s_phase_count=int,
-    p_pick_count=int,
-    s_pick_count=int,
+    p_phase_count=float,
+    s_phase_count=float,
+    p_pick_count=float,
+    s_pick_count=float,
     standard_error=float,
-    used_phase_count=int,
+    used_phase_count=float,
     stations=str,
-    station_count=int,
+    station_count=float,
     vertical_uncertainty=float,
     updated=float,
     author=str,
@@ -411,6 +411,13 @@ UTC_FORMATS = {
     "hour": "%02d",
     "minute": "%02d",
     "second": "%02d",
+}
+
+# magnitude column names and magnitude type used in event dataframes
+MAGNITUDE_COLUMN_TYPES = {
+    "moment_magnitude": "MW",
+    "local_magnitude": "ML",
+    "duration_magnitude": "MD",
 }
 
 # input args to UTCDateTime object

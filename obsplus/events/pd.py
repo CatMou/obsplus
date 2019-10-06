@@ -4,6 +4,7 @@ Module for generating a pandas dataframe from an obspy events.
 
 from os.path import isdir
 from pathlib import Path
+from typing import Optional, Sequence
 
 import numpy as np
 import obspy
@@ -11,6 +12,7 @@ import obspy.core.event as ev
 import pandas as pd
 
 import obsplus
+from obsplus import get_preferred
 from obsplus.constants import (
     EVENT_COLUMNS,
     EVENT_DTYPES,
@@ -25,12 +27,12 @@ from obsplus.constants import (
     ARRIVAL_COLUMNS,
     ARRIVAL_DTYPES,
     NSLC,
+    MAGNITUDE_COLUMN_TYPES,
 )
 from obsplus.events.utils import get_reference_time, get_seed_id
 from obsplus.interfaces import BankType, EventClient
 from obsplus.structures.dfextractor import DataFrameExtractor
 from obsplus.utils import read_file, apply_to_files_or_skip, get_instances, getattrs
-from obsplus import get_preferred
 
 # -------------------- event extractors
 
@@ -40,6 +42,110 @@ events_to_df = DataFrameExtractor(
     time_columns=("time",),
     dtypes=EVENT_DTYPES,
 )
+
+
+class _OriginQualityExtractor:
+    """
+    A class encapsulating logic for getting information about origin quality.
+    """
+
+    def __init__(self, event: ev.Event):
+        self.event = event
+
+    def _get_picks_linked_to_amps(self, eve, arrival_set):
+        """ Make sure the picks exists the amplitudes point to. """
+        for pick in eve.picks:
+            pick.resource_id.set_referred_object(pick)
+        pick_dict = {str(p.resource_id): p for p in eve.picks}
+        assert set(arrival_set).issubset(
+            set(pick_dict)
+        ), "arrivals link to non-existent picks"
+        return pick_dict
+
+    def _get_pick_count(self, phase, pict_dict):
+        """ count the number of non-rejected picks with given phase """
+        out = {
+            i
+            for i, v in pict_dict.items()
+            if v.phase_hint == phase and v.evaluation_status != "rejected"
+        }
+        return len(out)
+
+    def _get_phase_count(self, ori: ev.Origin, phase_type: str):
+        """ return the number of phases with phase_type found in origin """
+        count = 0
+        for ar in ori.arrivals:
+            # if phase is not specified dont count it
+            if ar.phase is None or not len(ar.phase):
+                continue
+            if ar.phase == phase_type:
+                count += 1
+        return count
+
+    def _get_origin_quality_info(self, origin, out):
+        """ Get information from quality info."""
+        quality_attrs = (
+            ("standard_error", np.NaN),
+            ("associated_phase_count", 0),
+            ("azimuthal_gap", np.NaN),
+            ("used_phase_count", 0),
+        )
+        quality = getattr(origin, "quality", ev.OriginQuality())
+        for (attr, default) in quality_attrs:
+            out[attr] = getattr(quality, attr, None) or default
+
+    def _get_origin_uncertainty(self, origin, out):
+        """ Get information from uncertainty. """
+        uncert_attrs = (("horizontal_uncertainty", np.NaN),)
+        uncert = getattr(origin, "origin_uncertainty", ev.OriginUncertainty())
+        for (attr, default) in uncert_attrs:
+            out[attr] = getattr(uncert, attr) or default
+
+    def _get_depth_uncertainty_info(self, origin, out):
+        """ Get info from depth info. """
+        depth_uncert = origin.depth_errors
+        out["vertical_uncertainty"] = getattr(depth_uncert, "uncertainty", np.NaN)
+
+    def _get_phase_and_pick_counts(self, origin, out):
+        # get a dict of picks
+        arrivals = {str(x.pick_id) for x in origin.arrivals}
+        pick_dict = self._get_picks_linked_to_amps(self.event, arrivals)
+        used_picks = [p for pid, p in pick_dict.items() if pid in arrivals]
+        # get counts of picks
+        out["p_phase_count"] = self._get_phase_count(origin, "P")
+        out["s_phase_count"] = self._get_phase_count(origin, "S")
+        out["p_pick_count"] = self._get_pick_count("P", pick_dict)
+        out["s_pick_count"] = self._get_pick_count("S", pick_dict)
+        out["used_phase_count"] = out["p_phase_count"] + out["s_phase_count"]
+        # get names of station and station count
+        assert all(used_picks)
+        pset = {p.waveform_id.station_code for p in used_picks}
+        sl = sorted(list(pset))
+        out["stations"] = ", ".join(sl)
+        out["station_count"] = len(sl)
+
+    def __call__(self):
+        """ Return a dict of origin quality attributes. """
+        out = {}
+        origin = get_preferred(self.event, "origin", init_empty=True)
+        # now extract information
+        self._get_origin_quality_info(origin, out)
+        self._get_depth_uncertainty_info(origin, out)
+        # get phase and pick count
+        self._get_phase_and_pick_counts(origin, out)
+        return out
+
+
+def _get_last_magnitude(mags: Sequence[ev.Magnitude], mag_type: Optional[str] = None):
+    """ Get the quality of the last magnitude, optionally of a given type. """
+    out = np.NaN
+    for mag in mags:
+        if mag_type is not None:
+            mtype = (mag.magnitude_type or "").upper()
+            if not mag_type == mtype:
+                continue
+        out = mag.mag
+    return out
 
 
 @events_to_df.extractor
@@ -113,110 +219,20 @@ def _get_used_stations(origin: ev.Origin, pid):
 @events_to_df.extractor
 def _get_origin_quality(eve: ev.Event):
     """ get information from origin quality """
-
-    def _ensure_amps_linked_to_picks(eve,):
-        """ Make sure the picks exists the amplitudes point to. """
-        for pick in eve.picks:
-            pick.resource_id.set_referred_object(pick)
-        pick_dict = {str(p.resource_id): p for p in eve.picks}
-        apid = {str(ar.pick_id): ar for ar in ori.arrivals}
-        assert set(apid).issubset(set(pick_dict)), "arrivals link to non-existent picks"
-        return pick_dict
-
-    pick_dict = _ensure_amps_linked_to_picks(eve)
-
-    # TODO Clean this up! Start here!
-    ori = get_preferred(eve, "origin", init_empty=True)
-
-    # {desired attr: default value}
-    qual_set = {
-        "standard_error",
-        "associated_phase_count",
-        "azimuthal_gap",
-        "used_phase_count",
-    }
-    uncert_set = {"horizontal_uncertainty"}
-    # objects to pull from
-    qual = ori.quality
-    uncert = ori.origin_uncertainty
-    depth_uncert = ori.depth_errors
-    # out dict to populate
-    out = {}
-    for obsject, attrs in ((qual, qual_set), (uncert, uncert_set)):
-        obsject = obsject or {}
-        out.update(getattrs(obsject, attrs))
-
-    if depth_uncert is not None:
-        out["vertical_uncertainty"] = depth_uncert.get("uncertainty", np.nan)
-    else:
-        out["vertical_uncertainty"] = np.nan
-
-    out["p_phase_count"] = _get_phase_count(ori, "P")
-    out["s_phase_count"] = _get_phase_count(ori, "S")
-    out["p_pick_count"] = _get_pick_count("P", pick_dict)
-    out["s_pick_count"] = _get_pick_count("S", pick_dict)
-    out["used_phase_count"] = out["p_phase_count"] + out["s_phase_count"]
-
-    # get station count and concat'ed string of stations
-    arrivals = ori.arrivals
-    picks = [pick_dict.get(arr.pick_id.id) for arr in arrivals]
-    assert all(picks)
-    pset = {p.waveform_id.station_code for p in picks}
-    sl = sorted(list(pset))
-    out.update({"stations": ", ".join(sl), "station_count": len(sl)})
-
-    return out
-
-
-def _get_pick_count(phase, pict_dict):
-    """ count the number of non-rejected picks with given phase """
-    out = {
-        i
-        for i, v in pict_dict.items()
-        if v.phase_hint == phase and v.evaluation_status != "rejected"
-    }
-    return len(out)
-
-
-def _get_phase_count(ori: ev.Origin, phase_type: str):
-    """ return the number of phases with phase_type found in origin """
-    count = 0
-    for ar in ori.arrivals:
-        # if phase is not specified dont count it
-        if ar.phase is None or not len(ar.phase):
-            continue
-        if ar.phase == phase_type:
-            count += 1
-    return count
+    return _OriginQualityExtractor(eve)()
 
 
 @events_to_df.extractor
 def _get_magnitude_info(eve: ev.Event):
     """ extract magnitude information. Get base magnitude, as well as various
      other magnitude types (where applicable). """
+
     out = {}
     magnitude = get_preferred(eve, "magnitude", init_empty=True)
     out["magnitude"] = magnitude.mag
-    out["magnitude_type"] = magnitude.magnitude_type
-    mw = [
-        x.mag
-        for x in eve.magnitudes
-        if x.magnitude_type and x.magnitude_type.upper() == "MW"
-    ]
-    ml = [
-        x.mag
-        for x in eve.magnitudes
-        if x.magnitude_type and x.magnitude_type.upper() == "ML"
-    ]
-    md = [
-        x.mag
-        for x in eve.magnitudes
-        if x.magnitude_type and x.magnitude_type.upper() == "MD"
-    ]
-
-    out["moment_magnitude"] = mw[-1] if mw else np.nan
-    out["local_magnitude"] = ml[-1] if ml else np.nan
-    out["duration_magnitude"] = md[-1] if md else np.nan
+    out["magnitude_type"] = magnitude.magnitude_type or ""
+    for col_name, mag_type in MAGNITUDE_COLUMN_TYPES.items():
+        out[col_name] = _get_last_magnitude(eve.magnitudes, mag_type)
     return out
 
 
@@ -600,7 +616,6 @@ def magnitudes_to_dataframe(cat_or_event):
 
 obspy.core.event.Catalog.magnitudes_to_df = magnitudes_to_dataframe
 obspy.core.event.Event.magnitudes_to_df = magnitudes_to_dataframe
-
 
 # save the default events converter for use by other code (eg EventBank).
 _default_cat_to_df = events_to_df.copy()

@@ -237,11 +237,7 @@ class TestCat2Df:
     def df(self, test_catalog):
         """ call the catalog2df method, return result"""
         cat = test_catalog.copy()
-        try:
-            return events_to_df(cat)
-        except:
-            breakpoint()
-            events_to_df(cat)
+        return events_to_df(cat)
 
     # tests
     def test_method_exists(self, test_catalog):
@@ -266,7 +262,7 @@ class TestCat2Df:
             if eve.event_descriptions:
                 ed = eve.event_descriptions[0].text
             else:
-                ed = None
+                ed = ""
             assert ed == description
 
     def test_str(self):
@@ -286,7 +282,7 @@ class TestCat2Df:
         assert (expected == df.dtypes).all()
 
 
-class TestCat2DfPreferreds:
+class TestCat2DfPreferredThings:
     """ Make sure the preferred origins/mags show up in the df """
 
     # fixtures
@@ -336,13 +332,13 @@ class TestCat2DfPreferreds:
             assert origin.longitude == row.longitude
             assert origin.time == obspy.UTCDateTime(row.time)
 
-    def test_magnitudes(self, df, preferred_magnitudes):
+    def test_magnitudes(self, df, preferred_magnitudes, test_catalog):
         """ ensure the origins are correct """
         for ind, row in df.iterrows():
             mag = preferred_magnitudes[ind]
             assert mag.mag == row.magnitude
             mtype1 = str(row.magnitude_type).upper()
-            mtype2 = str(mag.magnitude_type).upper()
+            mtype2 = str(mag.magnitude_type or "").upper()
             assert mtype1 == mtype2
 
 
