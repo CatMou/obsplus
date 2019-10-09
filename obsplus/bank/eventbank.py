@@ -1,7 +1,7 @@
 """
 Class for interacting with events on a filesystem.
 """
-
+import inspect
 import time
 import warnings
 from concurrent.futures import Executor
@@ -26,7 +26,6 @@ from obsplus.bank.utils import (
     _read_table,
     _get_tables,
     _drop_rows,
-    _try_read_catalog,
 )
 from obsplus.constants import (
     EVENT_PATH_STRUCTURE,
@@ -38,7 +37,7 @@ from obsplus.constants import (
 from obsplus.events.get_events import _sanitize_circular_search, _get_ids
 from obsplus.exceptions import BankDoesNotExistError
 from obsplus.interfaces import ProgressBar
-from obsplus.utils import compose_docstring
+from obsplus.utils import compose_docstring, try_read_catalog
 
 # --- define static types
 
@@ -46,7 +45,9 @@ from obsplus.utils import compose_docstring
 COLUMN_TYPES = dict(EVENT_DTYPES)
 COLUMN_TYPES.pop("stations", None)
 COLUMN_TYPES["path"] = str
-STR_COLUMNS = {i for i, v in COLUMN_TYPES.items() if issubclass(v, str)}
+STR_COLUMNS = {
+    i for i, v in COLUMN_TYPES.items() if inspect.isclass(v) and issubclass(v, str)
+}
 INT_COLUMNS = {i for i, v in COLUMN_TYPES.items() if v is int}
 
 # unsupported query options
@@ -202,7 +203,7 @@ class EventBank(_Bank):
 
         def func(path):
             """ Function to yield events, update_time and paths. """
-            cat = _try_read_catalog(path, format=self.format)
+            cat = try_read_catalog(path, format=self.format)
             update_time = getmtime(path)
             path = path.replace(self.bank_path, "")
             return cat, update_time, path
@@ -292,7 +293,7 @@ class EventBank(_Bank):
         {get_events_params}
         """
         paths = self.bank_path + self.read_index(columns="path", **kwargs).path
-        read_func = partial(_try_read_catalog, format=self.format)
+        read_func = partial(try_read_catalog, format=self.format)
         kwargs = dict(chunksize=len(paths) // self._max_workers)
         try:
             return reduce(add, self._map(read_func, paths.values, **kwargs))

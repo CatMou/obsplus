@@ -42,6 +42,8 @@ from progressbar import ProgressBar
 import obsplus
 from obsplus.constants import (
     event_time_type,
+    column_function_map_type,
+    utc_able_type,
     NSLC,
     NULL_SEED_CODES,
     wave_type,
@@ -196,6 +198,57 @@ def try_read_catalog(catalog_path, **kwargs):
     return None
 
 
+def apply_funcs_to_columns(
+    df: pd.DataFrame, funcs: Optional[column_function_map_type]
+) -> pd.DataFrame:
+    """
+    Apply callables to columns.
+
+    Parameters
+    ----------
+    df
+        The input dataframe.
+    funcs
+        A mapping of {column_name, function_to_apply}.
+
+    Returns
+    -------
+    A new dataframe with the columns replaced with output of the function.
+    """
+    if funcs is not None:
+        df = df.copy()
+        for col in set(df.columns) & set(funcs):
+            df[col] = funcs[col](df[col])
+    return df
+
+
+def _timestampit(maybe_time):
+    """ Convert a possible time object to UTCDateTime and get timestamp or
+    return None. """
+    if pd.isnull(maybe_time):
+        return maybe_time
+    return obspy.UTCDateTime(maybe_time).timestamp
+
+
+def utc_to_npdatetime64(
+    list_like: Union[Sequence[utc_able_type], pd.Series, np.ndarray],
+) -> np.ndarray:
+    """
+    Convert a Sequence of anything ObSpy's UTCDateTime can ingest to an
+    array of np.float64.
+    """
+
+    def _utc_to_ns(x):
+        if pd.isnull(x) or not x:
+            return pd.NaT
+        elif isinstance(x, np.datetime64):
+            return x
+        return obspy.UTCDateTime(x)._ns
+
+    ns = np.array([_utc_to_ns(x) for x in list_like])
+    return pd.to_datetime(ns, unit="ns").values
+
+
 def order_columns(
     df: pd.DataFrame,
     required_columns: Sequence,
@@ -231,8 +284,8 @@ def order_columns(
     df = df.reindex(columns=new_cols)
     # cast network, station, location, channel, to str
     if dtype:
-        used = set(dtype) & set(df.columns)
-        df = df.astype({i: dtype[i] for i in used})
+        dtypes = {i: dtype[i] for i in set(dtype) & set(df.columns)}
+        df = df.astype(dtypes)
     if replace:
         try:
             df = df.replace(replace)

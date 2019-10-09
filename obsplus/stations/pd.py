@@ -10,13 +10,16 @@ from obspy.core.inventory import Channel
 import obsplus
 from obsplus.constants import STATION_COLUMNS, NSLC, STATION_DTYPES
 from obsplus.interfaces import BankType, EventClient
-from obsplus.structures.dfextractor import DataFrameExtractor
+from obsplus.structures.dfextractor import (
+    DataFrameExtractor,
+    standard_column_transforms,
+)
 from obsplus.utils import apply_to_files_or_skip, get_instances
 
 # attributes from channel to extract
 
 stations_to_df = DataFrameExtractor(
-    Channel, STATION_COLUMNS, time_columns=("start_date", "end_date")
+    Channel, STATION_COLUMNS, column_funcs=standard_column_transforms
 )
 
 

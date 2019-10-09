@@ -19,6 +19,7 @@ from obsplus.utils import (
     filter_index,
     filter_df,
     get_distance_df,
+    utc_to_npdatetime64,
 )
 
 
@@ -349,6 +350,31 @@ class TestMisc:
         out = list(obsplus.utils.apply_to_files_or_skip(func, apply_test_dir))
         assert len(processed_files) == 2
         assert len(out) == 1
+
+
+class TestUTCToNumpyDateTime:
+    """ Tests for converting UTC-able objects to numpy datetime 64. """
+
+    def test_simple(self):
+        """ Test converting simple UTCDateTimable things """
+        test_input = ("2019-01-10 11-12", obspy.UTCDateTime("2019-01-10T12-12"), 100)
+        expected = np.array([obspy.UTCDateTime(x)._ns for x in test_input])
+        out = utc_to_npdatetime64(test_input).astype(int)
+        assert np.equal(expected, out).all()
+
+    def test_with_nulls(self):
+        """ Test for handling nulls. """
+        test_input = (np.NaN, None, "", 15)
+        out = utc_to_npdatetime64(test_input)
+        # first make sure empty values worked
+        assert pd.isnull(out[:3]).all()
+        assert out[-1].astype(int) == obspy.UTCDateTime(15)._ns
+
+    def test_npdatetime64_as_input(self):
+        """ This should also work on np.datetime64. """
+        test_input = (np.datetime64(1000, "s"), np.datetime64(100, "ns"))
+        out = utc_to_npdatetime64(test_input)
+        assert (test_input == out).all()
 
 
 class TestDistanceDataframe:

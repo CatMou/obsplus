@@ -2,8 +2,8 @@
 Constants used throughout obsplus
 """
 import concurrent.futures
-from os import cpu_count
 from collections import OrderedDict
+from os import cpu_count
 from pathlib import Path
 from typing import (
     Callable,
@@ -60,15 +60,15 @@ STATION_DTYPES = OrderedDict(
     azimuth=float,
     dip=float,
     sample_rate=float,
-    start_date=float,
-    end_date=float,
+    start_date="datetime64[ns]",
+    end_date="datetime64[ns]",
 )
 
 STATION_COLUMNS = tuple(STATION_DTYPES)
 
 # columns required for event_data
 EVENT_DTYPES = OrderedDict(
-    time=float,
+    time="datetime64[ns]",
     latitude=float,
     longitude=float,
     depth=float,
@@ -94,7 +94,7 @@ EVENT_DTYPES = OrderedDict(
     updated=float,
     author=str,
     agency_id=str,
-    creation_time=float,
+    creation_time="datetime64[ns]",
     version=str,
 )
 
@@ -104,7 +104,7 @@ EVENT_COLUMNS = tuple(EVENT_DTYPES)
 
 PICK_DTYPES = OrderedDict(
     resource_id=str,
-    time=float,
+    time="datetime64[ns]",
     seed_id=str,
     filter_id=str,
     method_id=str,
@@ -114,9 +114,9 @@ PICK_DTYPES = OrderedDict(
     phase_hint=str,
     polarity=str,
     evaluation_mode=str,
-    event_time=float,
+    event_time="datetime64[ns]",
     evaluation_status=str,
-    creation_time=float,
+    creation_time="datetime64[ns]",
     author=str,
     agency_id=str,
     event_id=str,
@@ -154,16 +154,16 @@ AMPLITUDE_DTYPES = OrderedDict(
     period=float,
     snr=float,
     pick_id=str,
-    reference=float,
+    reference="datetime64[ns]",
     time_begin=float,
     time_end=float,
     scaling_time=float,
     evaluation_mode=str,
     evaluation_status=str,
-    creation_time=float,
+    creation_time="datetime64[ns]",
     author=str,
     agency_id=str,
-    event_time=float,
+    event_time="datetime64[ns]",
     event_id=str,
     network=str,
     station=str,
@@ -198,11 +198,11 @@ STATION_MAGNITUDE_DTYPES = OrderedDict(
     magnitude_id=str,
     origin_id=str,
     method_id=str,
-    creation_time=float,
+    creation_time="datetime64[ns]",
     author=str,
     agency_id=str,
     event_id=str,
-    event_time=float,
+    event_time="datetime64[ns]",
     network=str,
     station=str,
     location=str,
@@ -235,11 +235,11 @@ MAGNITUDE_DTYPES = OrderedDict(
     azimuthal_gap=float,
     evaluation_mode=str,
     evaluation_status=str,
-    creation_time=float,
+    creation_time="datetime64[ns]",
     author=str,
     agency_id=str,
     event_id=str,
-    event_time=float,
+    event_time="datetime64[ns]",
     uncertainty=float,
     lower_uncertainty=float,
     upper_uncertainty=float,
@@ -265,7 +265,7 @@ ARRIVAL_DTYPES = OrderedDict(
     horizontal_slowness_weight=float,
     backazimuth_weight=float,
     earth_model_id=str,
-    creation_time=float,
+    creation_time="datetime64[ns]",
     author=str,
     agency_id=str,
     network=str,
@@ -273,7 +273,7 @@ ARRIVAL_DTYPES = OrderedDict(
     location=str,
     channel=str,
     origin_id=str,
-    origin_time=float,
+    origin_time="datetime64[ns]",
 )
 
 ARRIVAL_COLUMNS = (
@@ -324,10 +324,10 @@ stream_proc_type = Callable[[Stream], Stream]
 wave_type = Union[Stream, Trace, xr.DataArray]
 
 # Type can can be turned into a UTCDateTime
-timable_type = Union[str, UTCDateTime, float]
+utc_able_type = Union[str, UTCDateTime, float, np.datetime64]
 
 # waveform request type (args for get_waveforms)
-waveform_request_type = Tuple[str, str, str, str, timable_type, timable_type]
+waveform_request_type = Tuple[str, str, str, str, utc_able_type, utc_able_type]
 
 # the signature of obspy fdsn client
 wfcli_type = Callable[[str, str, str, str, UTCDateTime, UTCDateTime], Stream]
@@ -380,6 +380,12 @@ xr_type = Union[xr.DataArray, xr.Dataset]
 
 # basic types
 basic_types = Optional[Union[int, float, str, bool]]
+
+# series to series or ndarray func
+series_func_type = Callable[[pd.Series], Union[pd.Series, np.ndarray]]
+
+# type for mapping of functions to apply over callables
+column_function_map_type = Mapping[str, series_func_type]
 
 # -------------------------- events validation constants
 
@@ -500,6 +506,15 @@ TIME_VALUES = [
     "time",
 ]
 
+# Columns of dataframes that are always date times
+TIME_COLUMNS = (
+    "time",
+    "creation_time",
+    "end_date",
+    "start_date",
+    "event_time",
+    "origin_time",
+)
 client_type = Union[str, concurrent.futures.Executor]
 TIME_PRECISION = obspy.UTCDateTime.DEFAULT_PRECISION
 AGG_LEVEL_MAP = dict(network=1, station=2, location=3, channel=4, all=5)

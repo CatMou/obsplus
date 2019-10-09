@@ -31,16 +31,32 @@ from obsplus.constants import (
 )
 from obsplus.events.utils import get_reference_time, get_seed_id
 from obsplus.interfaces import BankType, EventClient
-from obsplus.structures.dfextractor import DataFrameExtractor
+from obsplus.structures.dfextractor import (
+    DataFrameExtractor,
+    standard_column_transforms,
+)
 from obsplus.utils import read_file, apply_to_files_or_skip, get_instances, getattrs
 
-# -------------------- event extractors
+# -------------------- init extractors
 
 events_to_df = DataFrameExtractor(
     ev.Event,
     required_columns=EVENT_COLUMNS,
-    time_columns=("time",),
+    column_funcs=standard_column_transforms,
     dtypes=EVENT_DTYPES,
+)
+
+picks_to_df = DataFrameExtractor(
+    ev.Pick, PICK_COLUMNS, column_funcs=standard_column_transforms
+)
+
+arrivals_to_df = DataFrameExtractor(
+    ev.Arrival, ARRIVAL_COLUMNS, column_funcs=standard_column_transforms
+)
+
+
+amplitudes_to_df = DataFrameExtractor(
+    ev.Amplitude, AMPLITUDE_COLUMNS, column_funcs=standard_column_transforms
 )
 
 
@@ -198,7 +214,7 @@ def _get_origin_basic(eve):
     return getattrs(ori, set(origin_dtypes))
 
 
-@events_to_df.extractor(dtypes={"time": float})
+@events_to_df.extractor
 def _get_time(event):
     try:
         return {"time": obsplus.get_reference_time(event)}
@@ -266,11 +282,6 @@ def _bank_to_catalog(bank):
 # -------------- Picks to dataframe
 
 
-picks_to_df = DataFrameExtractor(
-    ev.Pick, PICK_COLUMNS, time_columns=("time", "event_time")
-)
-
-
 @picks_to_df.register(str)
 @picks_to_df.register(Path)
 def _file_to_picks_df(path):
@@ -298,9 +309,6 @@ def _pick_extractor(pick):
 
 
 # still thinking about the best way to go about combining these...
-arrivals_to_df = DataFrameExtractor(
-    ev.Arrival, ARRIVAL_COLUMNS, time_columns=("event_time",)
-)
 
 
 @arrivals_to_df.register(str)
@@ -355,13 +363,6 @@ def _arrivals_extractor(arr):
 # -------------- Amplitudes to dataframe
 
 
-# It seems like there is enough similarity between amplitudes_to_df and
-# picks_to_df that there should be some way to combine them...
-amplitudes_to_df = DataFrameExtractor(
-    ev.Amplitude, AMPLITUDE_COLUMNS, time_columns=("event_time",)
-)
-
-
 @amplitudes_to_df.register(str)
 @amplitudes_to_df.register(Path)
 def _file_to_amplitudes_df(path):
@@ -398,7 +399,7 @@ def _amplitudes_extractor(amp):
 
 # still thinking about the best way to go about combining these...
 station_magnitudes_to_df = DataFrameExtractor(
-    ev.StationMagnitude, STATION_MAGNITUDE_COLUMNS, time_columns=("event_time",)
+    ev.StationMagnitude, STATION_MAGNITUDE_COLUMNS, column_funcs=("event_time",)
 )
 
 
@@ -442,7 +443,7 @@ def _station_magnitudes_extractor(sm):
 
 # still thinking about the best way to go about combining these...
 magnitudes_to_df = DataFrameExtractor(
-    ev.Magnitude, MAGNITUDE_COLUMNS, time_columns=("event_time",)
+    ev.Magnitude, MAGNITUDE_COLUMNS, column_funcs=("event_time",)
 )
 
 

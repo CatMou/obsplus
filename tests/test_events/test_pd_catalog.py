@@ -31,7 +31,6 @@ from obsplus.constants import (
     MAGNITUDE_COLUMNS,
     EVENT_DTYPES,
 )
-
 from obsplus.utils import getattrs, get_seed_id_series
 
 common_extractor_cols = {
@@ -222,6 +221,16 @@ def mag_generator(mag_types):
         )
         mags.append(m)
     return mags
+
+
+def floatify_dict(some_dict):
+    """ iterate a dict and convert all TimeStamps to floats. """
+    out = {}
+    for i, v in some_dict.items():
+        if isinstance(v, pd.Timestamp):
+            v = v.timestamp()
+        out[i] = v
+    return out
 
 
 # --------------- tests
@@ -542,12 +551,12 @@ class TestReadPhasePicks:
     def test_picks_no_origin(self, picks_no_origin):
         """ ensure not having an origin time returns min of picks per event. """
         df = picks_no_origin
-        assert (df.event_time == df.time.min()).all()
+        assert (df["event_time"] == df["time"].min()).all()
 
     def test_unique_event_time_no_origin(self, bingham_cat_only_picks):
         """ Ensure events with no origin don't all return the same time. """
         df = picks_to_df(bingham_cat_only_picks)
-        assert len(df.event_time.unique()) == len(df.event_id.unique())
+        assert len(df["event_time"].unique()) == len(df["event_id"].unique())
 
     def test_read_uncertainty(self):
         """
@@ -654,7 +663,7 @@ class TestReadArrivals:
     @pytest.fixture(scope="class")
     def ser_dict(self, read_arr_output):
         """ values to compare from the extractor """
-        ser_dict = dict(read_arr_output.iloc[0])
+        ser_dict = floatify_dict(dict(read_arr_output.iloc[0]))
         for key in common_extractor_cols:
             ser_dict.pop(key, None)
         return ser_dict
@@ -690,6 +699,7 @@ class TestReadArrivals:
 
     def test_values(self, ser_dict, arr_dict):
         """ make sure the values of the first arrival are as expected """
+
         assert ser_dict == arr_dict
 
     # empty catalog tests
@@ -744,7 +754,7 @@ class TestReadAmplitudes:
     @pytest.fixture(scope="class")
     def ser_dict(self, amp_series):
         """ values to compare from the extractor """
-        ser_dict = dict(amp_series)
+        ser_dict = floatify_dict(dict(amp_series))
         err_cols = {
             "confidence_level",
             "uncertainty",
@@ -848,7 +858,7 @@ class TestReadStationMagnitudes:
     @pytest.fixture(scope="class")
     def ser_dict(self, read_sms_output):
         """ values to compare from the extractor """
-        ser_dict = dict(read_sms_output.iloc[0])
+        ser_dict = floatify_dict(dict(read_sms_output.iloc[0]))
         err_cols = {
             "confidence_level",
             "uncertainty",
@@ -929,7 +939,7 @@ class TestReadMagnitudes:
     @pytest.fixture(scope="class")
     def ser_dict(self, read_mags_output):
         """ values to compare from the extractor """
-        ser_dict = dict(read_mags_output.iloc[0])
+        ser_dict = floatify_dict(dict(read_mags_output.iloc[0]))
         err_cols = {
             "confidence_level",
             "uncertainty",
