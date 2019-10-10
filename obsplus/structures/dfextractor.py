@@ -10,10 +10,10 @@ from typing import Mapping, Sequence, Optional, Dict
 import pandas as pd
 
 from obsplus.constants import column_function_map_type, TIME_COLUMNS
-from obsplus.utils import order_columns, apply_funcs_to_columns, utc_to_npdatetime64
+from obsplus.utils import order_columns, apply_funcs_to_columns, sequence_to_npdatetime
 
 # Create a dictionary of standard column_name: funcs to apply
-standard_column_transforms = {x: utc_to_npdatetime64 for x in TIME_COLUMNS}
+standard_column_transforms = {x: sequence_to_npdatetime for x in TIME_COLUMNS}
 
 
 def _pass_through_dataframe(df: pd.DataFrame):

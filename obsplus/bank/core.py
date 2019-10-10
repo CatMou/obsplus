@@ -40,7 +40,7 @@ class _Bank(ABC):
     name_structure = None
     # the minimum obsplus version. If not met delete index and re-index
     # bump when database schema change.
-    _min_version = "0.0.0"
+    _min_version = "0.0.3"
     # status bar attributes
     _bar_update_interval = 50  # number of files before updating bar
     _min_files_for_bar = 100  # min number of files before using bar enabled

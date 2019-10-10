@@ -10,7 +10,9 @@ import obspy
 import obspy.core.event as ev
 import pandas as pd
 import pytest
+import numpy as np
 from obspy import UTCDateTime
+
 
 import obsplus
 from obsplus import (
@@ -224,11 +226,16 @@ def mag_generator(mag_types):
 
 
 def floatify_dict(some_dict):
-    """ iterate a dict and convert all TimeStamps to floats. """
+    """
+    Iterate a dict and convert all TimeStamps to floats. Then round all floats
+    to nearest 4 decimals.
+    """
     out = {}
     for i, v in some_dict.items():
         if isinstance(v, pd.Timestamp):
             v = v.timestamp()
+        if isinstance(v, float):
+            v = np.round(v, 4)
         out[i] = v
     return out
 
@@ -663,7 +670,7 @@ class TestReadArrivals:
     @pytest.fixture(scope="class")
     def ser_dict(self, read_arr_output):
         """ values to compare from the extractor """
-        ser_dict = floatify_dict(dict(read_arr_output.iloc[0]))
+        ser_dict = dict(read_arr_output.iloc[0])
         for key in common_extractor_cols:
             ser_dict.pop(key, None)
         return ser_dict
@@ -699,8 +706,7 @@ class TestReadArrivals:
 
     def test_values(self, ser_dict, arr_dict):
         """ make sure the values of the first arrival are as expected """
-
-        assert ser_dict == arr_dict
+        assert floatify_dict(ser_dict) == floatify_dict(arr_dict)
 
     # empty catalog tests
     def test_empty_catalog(self, empty_cat):
@@ -754,7 +760,7 @@ class TestReadAmplitudes:
     @pytest.fixture(scope="class")
     def ser_dict(self, amp_series):
         """ values to compare from the extractor """
-        ser_dict = floatify_dict(dict(amp_series))
+        ser_dict = dict(amp_series)
         err_cols = {
             "confidence_level",
             "uncertainty",
@@ -797,7 +803,7 @@ class TestReadAmplitudes:
 
     def test_values(self, ser_dict, amp_dict):
         """ make sure the values of the first amplitude are as expected """
-        assert ser_dict == amp_dict
+        assert floatify_dict(ser_dict) == floatify_dict(amp_dict)
 
     def test_creation_time(self, amplitude, amp_series):
         assert amp_series["creation_time"] == obspy.UTCDateTime(
@@ -858,7 +864,7 @@ class TestReadStationMagnitudes:
     @pytest.fixture(scope="class")
     def ser_dict(self, read_sms_output):
         """ values to compare from the extractor """
-        ser_dict = floatify_dict(dict(read_sms_output.iloc[0]))
+        ser_dict = dict(read_sms_output.iloc[0])
         err_cols = {
             "confidence_level",
             "uncertainty",
@@ -898,7 +904,7 @@ class TestReadStationMagnitudes:
 
     def test_values(self, ser_dict, sm_dict):
         """ make sure the values of the first station magnitude are as expected """
-        assert ser_dict == sm_dict
+        assert floatify_dict(ser_dict) == floatify_dict(sm_dict)
 
     # magnitude object tests
     def test_magnitude(self, dummy_mag):
@@ -939,7 +945,7 @@ class TestReadMagnitudes:
     @pytest.fixture(scope="class")
     def ser_dict(self, read_mags_output):
         """ values to compare from the extractor """
-        ser_dict = floatify_dict(dict(read_mags_output.iloc[0]))
+        ser_dict = dict(read_mags_output.iloc[0])
         err_cols = {
             "confidence_level",
             "uncertainty",
@@ -976,7 +982,7 @@ class TestReadMagnitudes:
 
     def test_values(self, ser_dict, mag_dict):
         """ make sure the values of the first station magnitude are as expected """
-        assert ser_dict == mag_dict
+        assert floatify_dict(ser_dict) == floatify_dict(mag_dict)
 
     # empty catalog tests
     def test_empty_catalog(self, empty_cat):

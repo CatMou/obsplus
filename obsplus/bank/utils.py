@@ -25,7 +25,7 @@ from obsplus.constants import (
     WAVEFORM_NAME_STRUCTURE,
     EVENT_NAME_STRUCTURE,
 )
-from obsplus.utils import _get_event_origin_time, READ_DICT
+from obsplus.utils import _get_event_origin_time, READ_DICT, dict_times_to_ns
 from .mseed import summarize_mseed
 
 # --- sensible defaults
@@ -285,7 +285,7 @@ def _str_of_params(value):
 
 def _make_wheres(queries):
     """ Create the where queries, join with AND clauses """
-    kwargs = dict(queries)
+    kwargs = dict_times_to_ns(queries)
     out = []
 
     if "eventid" in kwargs:
@@ -296,15 +296,9 @@ def _make_wheres(queries):
     if "event_description" in kwargs:
         kwargs["event_description"] = _str_of_params(kwargs["event_description"])
     if "endtime" in kwargs:
-        kwargs["maxtime"] = kwargs["endtime"]
-        kwargs.pop("endtime")
+        kwargs["maxtime"] = kwargs.pop("endtime")
     if "starttime" in kwargs:
-        kwargs["mintime"] = kwargs["starttime"]
-        kwargs.pop("starttime")
-    if "mintime" in kwargs:
-        kwargs["mintime"] = obspy.UTCDateTime(kwargs["mintime"]).timestamp
-    if "maxtime" in kwargs:
-        kwargs["maxtime"] = obspy.UTCDateTime(kwargs["maxtime"]).timestamp
+        kwargs["mintime"] = kwargs.pop("starttime")
 
     for key, val in kwargs.items():
         # deal with simple min/max
@@ -358,6 +352,7 @@ def _read_table(table_name, con, columns=None, **kwargs) -> pd.DataFrame:
     -------
 
     """
+    # first ensure all times are ns (as ints)
     sql = _make_sql_command("select", table_name, columns=columns, **kwargs)
     # replace "None" with None
     return pd.read_sql(sql, con)

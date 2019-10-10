@@ -324,7 +324,7 @@ stream_proc_type = Callable[[Stream], Stream]
 wave_type = Union[Stream, Trace, xr.DataArray]
 
 # Type can can be turned into a UTCDateTime
-utc_able_type = Union[str, UTCDateTime, float, np.datetime64]
+utc_able_type = Union[str, UTCDateTime, float, np.datetime64, pd.Timestamp]
 
 # waveform request type (args for get_waveforms)
 waveform_request_type = Tuple[str, str, str, str, utc_able_type, utc_able_type]
@@ -514,8 +514,11 @@ TIME_COLUMNS = (
     "start_date",
     "event_time",
     "origin_time",
+    "reference",
+    "starttime",
+    "endtime",
 )
-client_type = Union[str, concurrent.futures.Executor]
+
 TIME_PRECISION = obspy.UTCDateTime.DEFAULT_PRECISION
 AGG_LEVEL_MAP = dict(network=1, station=2, location=3, channel=4, all=5)
 

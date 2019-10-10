@@ -51,6 +51,7 @@ from obsplus.constants import (
     inventory_type,
     DISTANCE_COLUMNS,
     DISTANCE_DTYPES,
+    TIME_COLUMNS,
 )
 
 BASIC_NON_SEQUENCE_TYPE = (int, float, str, bool, type(None))
@@ -220,33 +221,6 @@ def apply_funcs_to_columns(
         for col in set(df.columns) & set(funcs):
             df[col] = funcs[col](df[col])
     return df
-
-
-def _timestampit(maybe_time):
-    """ Convert a possible time object to UTCDateTime and get timestamp or
-    return None. """
-    if pd.isnull(maybe_time):
-        return maybe_time
-    return obspy.UTCDateTime(maybe_time).timestamp
-
-
-def utc_to_npdatetime64(
-    list_like: Union[Sequence[utc_able_type], pd.Series, np.ndarray],
-) -> np.ndarray:
-    """
-    Convert a Sequence of anything ObSpy's UTCDateTime can ingest to an
-    array of np.float64.
-    """
-
-    def _utc_to_ns(x):
-        if pd.isnull(x) or not x:
-            return pd.NaT
-        elif isinstance(x, np.datetime64):
-            return x
-        return obspy.UTCDateTime(x)._ns
-
-    ns = np.array([_utc_to_ns(x) for x in list_like])
-    return pd.to_datetime(ns, unit="ns").values
 
 
 def order_columns(
@@ -579,7 +553,7 @@ def compose_docstring(**kwargs):
             for line in lines:
                 # determine number of spaces used before matching character
                 spaces = line.split(search_value)[0]
-                # ensure only spaces preceed search value
+                # ensure only spaces precede search value
                 assert set(spaces) == {" "}
                 new = {key: textwrap.indent(textwrap.dedent(value), spaces)}
                 docstring = docstring.replace(line, line.format(**new))
@@ -1042,3 +1016,80 @@ def _column_contains(ser: pd.Series, str_sequence: Iterable[str]) -> pd.Series:
     """ Test if a str series contains any values in a sequence """
     safe_matches = {re.escape(x) for x in str_sequence}
     return ser.str.contains("|".join(safe_matches)).values
+
+
+# --- functions for dealing with time conversions (ugh)
+
+
+def sequence_to_npdatetime(
+    list_like: Union[Sequence[utc_able_type], pd.Series, np.ndarray],
+) -> np.ndarray:
+    """
+    Convert a Sequence of anything ObSpy's UTCDateTime can ingest to an
+    array of np.float64.
+    """
+    ns = np.array([value_to_npdatetime(x) for x in list_like])
+    return pd.to_datetime(ns, unit="ns").values
+
+
+def value_to_npdatetime(value: utc_able_type) -> np.datetime64:
+    """
+    Convert time value to a numpy datetime64.
+
+    Parameters
+    ----------
+    value
+        Any Value that can be interpreted as a time.
+    """
+    if pd.isnull(value) or not value:
+        return pd.NaT
+    elif isinstance(value, np.datetime64):
+        return value
+    elif isinstance(value, pd.Timestamp):
+        return value.to_numpy()
+    return np.datetime64(obspy.UTCDateTime(value)._ns, "ns")
+
+
+@compose_docstring(time_keys=str(TIME_COLUMNS))
+def dict_times_to_npdatetimes(
+    input_dict: Dict[str, Any], time_keys: Sequence[str] = TIME_COLUMNS
+) -> Dict[str, Any]:
+    """
+    Ensure time values in input_dict are converted to np.datetime64.
+
+    Parameters
+    ----------
+    input_dict
+        A dict that may contain time representations.
+    time_keys
+        A sequence of keys to search for and convert to np.datetime64.
+        Defaults are:
+        {time_keys}
+    """
+    out = dict(input_dict)
+    for time_key in set(input_dict) & set(time_keys):
+        out[time_key] = value_to_npdatetime(out[time_key])
+    return out
+
+
+@compose_docstring(time_keys=str(TIME_COLUMNS))
+def dict_times_to_ns(
+    input_dict: Dict[str, Any], time_keys: Sequence[str] = TIME_COLUMNS
+) -> Dict[str, Any]:
+    """
+    Ensure time values in input_dict are converted to ints (ns).
+
+    Parameters
+    ----------
+    input_dict
+        A dict that may contain time representations.
+    time_keys
+        A sequence of keys to search for and convert to np.datetime64.
+        Defaults are:
+        {time_keys}
+    """
+    out = dict(input_dict)
+    for time_key in set(input_dict) & set(time_keys):
+        if not isinstance(out[time_key], int):  # assume ints are ns
+            out[time_key] = value_to_npdatetime(out[time_key]).astype(int)
+    return out

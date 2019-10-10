@@ -60,6 +60,17 @@ amplitudes_to_df = DataFrameExtractor(
 )
 
 
+station_magnitudes_to_df = DataFrameExtractor(
+    ev.StationMagnitude,
+    STATION_MAGNITUDE_COLUMNS,
+    column_funcs=standard_column_transforms,
+)
+
+magnitudes_to_df = DataFrameExtractor(
+    ev.Magnitude, MAGNITUDE_COLUMNS, column_funcs=standard_column_transforms
+)
+
+
 class _OriginQualityExtractor:
     """
     A class encapsulating logic for getting information about origin quality.
@@ -397,12 +408,6 @@ def _amplitudes_extractor(amp):
 # -------------- StationMagnitudes to dataframe
 
 
-# still thinking about the best way to go about combining these...
-station_magnitudes_to_df = DataFrameExtractor(
-    ev.StationMagnitude, STATION_MAGNITUDE_COLUMNS, column_funcs=("event_time",)
-)
-
-
 @station_magnitudes_to_df.register(str)
 @station_magnitudes_to_df.register(Path)
 def _file_to_station_magnitudes_df(path):
@@ -439,12 +444,6 @@ def _station_magnitudes_extractor(sm):
 
 
 # -------------- Magnitudes to dataframe
-
-
-# still thinking about the best way to go about combining these...
-magnitudes_to_df = DataFrameExtractor(
-    ev.Magnitude, MAGNITUDE_COLUMNS, column_funcs=("event_time",)
-)
 
 
 @magnitudes_to_df.register(str)
