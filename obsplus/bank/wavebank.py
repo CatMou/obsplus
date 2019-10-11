@@ -35,6 +35,8 @@ from obsplus.constants import (
     utc_time_type,
     get_waveforms_parameters,
     bar_paramter_description,
+    WAVEFORM_DTYPES,
+    WAVEFORM_DTYPES_INPUT,
 )
 from obsplus.utils import (
     compose_docstring,
@@ -44,10 +46,9 @@ from obsplus.utils import (
     filter_index,
     replace_null_nlsc_codes,
     _column_contains,
+    order_columns,
 )
 from obsplus.waveforms.utils import merge_traces
-
-# from obsplus.interfaces import WaveformClient
 
 # No idea why but this needs to be here to avoid problems with pandas
 assert tables.get_hdf5_version()
@@ -118,17 +119,21 @@ class WaveBank(_Bank):
     # index columns and types
     metadata_columns = "last_updated path_structure name_structure".split()
     index_str = tuple(NSLC)
-    index_float = ("starttime", "endtime")
-    index_columns = tuple(list(index_str) + list(index_float) + ["path"])
+    index_ints = ("starttime", "endtime", "sampling_period")
+    index_columns = tuple(list(index_str) + list(index_ints) + ["path"])
     columns_no_path = index_columns[:-1]
     gap_columns = tuple(list(columns_no_path) + ["gap_duration"])
     namespace = "/waveforms"
     # other defaults
-    buffer = 10.111  # the time before and after the desired times to pull
+    # the time before and after the desired times to pull
+    buffer = np.timedelta64(1_000_000_000, "ns")
+    # buffer = 10.111
     # dict defining lengths of str columns (after seed spec)
     # Note: Empty strings get their dtypes caste as S8, which means 8 is the min
     min_itemsize = {"path": 79, "station": 8, "network": 8, "location": 8, "channel": 8}
     _min_files_for_bar = 5000  # number of files before progress bar kicks in
+    _dtypes_input = WAVEFORM_DTYPES_INPUT
+    _dtypes_output = WAVEFORM_DTYPES
 
     # ----------------------------- setup stuff
 
@@ -181,7 +186,7 @@ class WaveBank(_Bank):
             complib=self._complib,
             complevel=self._complevel,
             format="table",
-            data_columns=list(self.index_float),
+            data_columns=list(self.index_ints),
         )
 
     @compose_docstring(bar_paramter_description=bar_paramter_description)
@@ -207,18 +212,8 @@ class WaveBank(_Bank):
 
     def _write_update(self, updates, update_time):
         """ convert updates to dataframe, then append to index table """
-        # read in dataframe and cast to correct types
-        df = pd.DataFrame.from_dict(updates)
-        # ensure the bank path is not in the path column
-        df["path"] = df["path"].str.replace(self.bank_path, "")
-        # assert not df.duplicated().any(), "update index has duplicate entries"
-        for str_index in self.index_str:
-            sser = df[str_index].astype(str)
-            df[str_index] = sser.str.replace("b", "").str.replace("'", "")
-        for float_index in self.index_float:
-            df[float_index] = df[float_index].astype(float)
-        # populate index store and update metadata
-        assert not df.isnull().any().any(), "null values found in index dataframe"
+        # read in dataframe and prepare for input into hdf5 index
+        df = self._prep_write_df(pd.DataFrame.from_dict(updates))
         with pd.HDFStore(self.index_path) as store:
             node = self._index_node
             try:
@@ -238,6 +233,20 @@ class WaveBank(_Bank):
             if self._meta_node not in store:
                 meta = self._make_meta_table()
                 store.put(self._meta_node, meta, format="table")
+
+    def _prep_write_df(self, df):
+        """ Prepare the dataframe to put it into the HDF5 store. """
+        # ensure the bank path is not in the path column
+        df["path"] = df["path"].str.replace(self.bank_path, "")
+        dtypes = WAVEFORM_DTYPES_INPUT
+        cols = list(WAVEFORM_DTYPES_INPUT)
+        df = order_columns(df, dtype=dtypes, required_columns=list(dtypes))
+        for str_index in self.index_str:
+            sser = df[str_index].astype(str)
+            df[str_index] = sser.str.replace("b", "").str.replace("'", "")
+        # populate index store and update metadata
+        assert not df.isnull().any().any(), "null values found in index dataframe"
+        return df
 
     def _ensure_meta_table_exists(self):
         """

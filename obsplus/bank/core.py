@@ -6,7 +6,8 @@ import warnings
 from abc import ABC, abstractmethod
 from os.path import join
 from pathlib import Path
-from typing import Optional, TypeVar
+from typing import Optional, TypeVar, Mapping
+from types import MappingProxyType as MapProxy
 
 import pandas as pd
 from pandas.io.sql import DatabaseError
@@ -45,6 +46,10 @@ class _Bank(ABC):
     _bar_update_interval = 50  # number of files before updating bar
     _min_files_for_bar = 100  # min number of files before using bar enabled
     _read_func: callable  # function for reading datatype
+    # required dypes for input to storage layer
+    _dtypes_input: Mapping = MapProxy({})
+    # required dtypes for output from bank
+    _dtypes_output: Mapping = MapProxy({})
 
     @abstractmethod
     def read_index(self, **kwargs) -> pd.DataFrame:

@@ -33,6 +33,8 @@ from obsplus.constants import (
     EVENT_DTYPES,
     get_events_parameters,
     bar_paramter_description,
+    EVENT_TYPES_OUTPUT,
+    EVENT_TYPES_INPUT,
 )
 from obsplus.events.get_events import _sanitize_circular_search, _get_ids
 from obsplus.exceptions import BankDoesNotExistError
@@ -43,19 +45,13 @@ from obsplus.utils import compose_docstring, try_read_catalog, dict_times_to_npd
 
 # Fixed types for expected columns
 # output types (ie returned from read_index)
-COLUMN_TYPES_OUTPUT = dict(EVENT_DTYPES)
-COLUMN_TYPES_OUTPUT.pop("stations", None)
-COLUMN_TYPES_OUTPUT["path"] = str
-# input types (ie to go into database)
-INPUT_MAP = {"datetime64[ns]": int}
-COLUMN_TYPES_INPUT = {i: INPUT_MAP.get(v, v) for i, v in COLUMN_TYPES_OUTPUT.items()}
 
 STR_COLUMNS = {
     i
-    for i, v in COLUMN_TYPES_OUTPUT.items()
+    for i, v in EVENT_TYPES_OUTPUT.items()
     if inspect.isclass(v) and issubclass(v, str)
 }
-INT_COLUMNS = {i for i, v in COLUMN_TYPES_OUTPUT.items() if v is int}
+INT_COLUMNS = {i for i, v in EVENT_TYPES_OUTPUT.items() if v is int}
 
 # unsupported query options
 
@@ -113,6 +109,8 @@ class EventBank(_Bank):
     namespace = "/events"
     index_name = ".index.db"  # name of index file
     _min_files_for_bar = 50
+    _dtypes_output = EVENT_TYPES_OUTPUT
+    _dtypes_input = EVENT_TYPES_INPUT
 
     def __init__(
         self,
@@ -199,8 +197,8 @@ class EventBank(_Bank):
                     self.update_index()
                     return self.read_index(_allow_update=False, **kwargs)
                 # else return empty index
-                df = pd.DataFrame(columns=list(COLUMN_TYPES_OUTPUT))
-        df = self._prepare_dataframe(df, dtypes=COLUMN_TYPES_OUTPUT)
+                df = pd.DataFrame(columns=list(EVENT_TYPES_OUTPUT))
+        df = self._prepare_dataframe(df, dtypes=EVENT_TYPES_OUTPUT)
         if len(circular_kwargs) >= 3:
             # Requires at least latitude, longitude and min or max radius
             circular_ids = _get_ids(df, circular_kwargs)
@@ -241,7 +239,7 @@ class EventBank(_Bank):
         df["updated"] = update_times
         df["path"] = paths
         if len(df):
-            df_to_write = self._prepare_dataframe(df, COLUMN_TYPES_INPUT)
+            df_to_write = self._prepare_dataframe(df, EVENT_TYPES_INPUT)
             self._write_update(df_to_write, update_time)
         return self
 

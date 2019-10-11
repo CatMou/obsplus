@@ -25,6 +25,7 @@ from typing import (
     TypeVar,
     Collection,
     Iterable,
+    Mapping,
 )
 
 import numpy as np
@@ -52,6 +53,8 @@ from obsplus.constants import (
     DISTANCE_COLUMNS,
     DISTANCE_DTYPES,
     TIME_COLUMNS,
+    MAXINT64,
+    time_types,
 )
 
 BASIC_NON_SEQUENCE_TYPE = (int, float, str, bool, type(None))
@@ -226,8 +229,9 @@ def apply_funcs_to_columns(
 def order_columns(
     df: pd.DataFrame,
     required_columns: Sequence,
-    dtype: Optional[Dict[str, type]] = None,
-    replace: Optional[dict] = None,
+    dtype: Optional[Mapping[str, type]] = None,
+    replace: Optional[Mapping] = None,
+    drop_columns: bool = False,
 ):
     """
     Given a dataframe, assert that required columns are in the df, then
@@ -237,13 +241,15 @@ def order_columns(
     Parameters
     ----------
     df
-        A dataframe
+        The input dataframe.
     required_columns
-        A sequence that contains the column names
+        A sequence that contains the column names.
     dtype
-        A dictionary of dtypes
+        A dictionary of dtypes.
     replace
-        Input passed to DataFrame.Replace
+        Input passed to DataFrame.Replace.
+    drop_columns
+        If True drop columns not in required_columns.
     Returns
     -------
     pd.DataFrame
@@ -253,6 +259,8 @@ def order_columns(
     # make sure required columns are there
     column_set = set(df.columns)
     extra_cols = sorted(list(column_set - set(required_columns)))
+    if drop_columns:  # dont include extras if drop_columns
+        extra_cols = []
     new_cols = list(required_columns) + extra_cols
     # add any extra (blank) columns if needed and sort
     df = df.reindex(columns=new_cols)
@@ -353,7 +361,9 @@ def _get_event_origin_time(event):
     except IndexError:
         por = None
     if por is not None:
-        assert por.time is not None, f"bad time found on {por}"
+        if por.time is None:
+            msg = f"no origin time found on {por}"
+            raise ValueError(msg)
         return get_reference_time(por.time)
     # else try using picks
     elif event.picks:
@@ -1047,7 +1057,13 @@ def value_to_npdatetime(value: utc_able_type) -> np.datetime64:
         return value
     elif isinstance(value, pd.Timestamp):
         return value.to_numpy()
-    return np.datetime64(obspy.UTCDateTime(value)._ns, "ns")
+    try:
+        utc = obspy.UTCDateTime(value)
+        return np.datetime64(utc._ns, "ns")
+    except SystemError:  # the UTCDAteTIme is too big or small, convert
+        msg = f"{utc} is too large to represent with a int64, downcasting"
+        warnings.warn(msg)
+        return np.datetime64(np.sign(utc.ns) * (MAXINT64 - 100), "ns")
 
 
 @compose_docstring(time_keys=str(TIME_COLUMNS))
@@ -1093,3 +1109,8 @@ def dict_times_to_ns(
         if not isinstance(out[time_key], int):  # assume ints are ns
             out[time_key] = value_to_npdatetime(out[time_key]).astype(int)
     return out
+
+
+def is_time(obj):
+    """ return True if an object is a time type. """
+    return isinstance(obj, time_types) or pd.isnull(obj)

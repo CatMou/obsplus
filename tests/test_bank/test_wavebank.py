@@ -8,6 +8,7 @@ import tempfile
 import time
 import types
 from concurrent.futures import as_completed, ProcessPoolExecutor
+from contextlib import suppress
 
 from os.path import join
 from pathlib import Path
@@ -26,7 +27,13 @@ import obsplus.datasets.utils
 from obsplus.bank.wavebank import WaveBank
 from obsplus.constants import NSLC
 from obsplus.exceptions import BankDoesNotExistError
-from obsplus.utils import make_time_chunks, iter_files, get_reference_time
+from obsplus.utils import (
+    make_time_chunks,
+    iter_files,
+    get_reference_time,
+    is_time,
+    value_to_npdatetime,
+)
 
 
 # ----------------------------------- Helper functions
@@ -287,7 +294,8 @@ class TestBankBasics:
         bank = WaveBank(pathlib.Path(tmp_ta_dir) / "waveforms")
         ind = bank.read_index()
         min_start = ind.starttime.min()
-        st = bank.get_waveforms(starttime=min_start, endtime=min_start + 600)
+        td = np.timedelta64(600, "s")
+        st = bank.get_waveforms(starttime=min_start, endtime=min_start + td)
         assert isinstance(st, obspy.Stream)
 
     def test_starttime_larger_than_endtime_raises(self, ta_bank):
@@ -304,9 +312,8 @@ class TestBankBasics:
         """ ensure the index has times consistent with traces in waveforms """
         index = default_wbank.read_index()
         st = obspy.read()
-        starttimes = [tr.stats.starttime.timestamp for tr in st]
-        endtimes = [tr.stats.endtime.timestamp for tr in st]
-
+        starttimes = [value_to_npdatetime(tr.stats.starttime) for tr in st]
+        endtimes = [value_to_npdatetime(tr.stats.endtime) for tr in st]
         assert min(starttimes) == index.starttime.min()
         assert max(endtimes) == index.endtime.max()
 
@@ -351,6 +358,12 @@ class TestBankBasics:
         """ ensure update index returns the instance for chaining. """
         out = default_wbank.update_index()
         assert out is default_wbank
+
+    def test_index_time_types(self, default_wbank):
+        """ Ensure the time columns are np datetimes """
+        df = default_wbank.read_index()
+        np_datetime_cols = df.select_dtypes(np.datetime64).columns
+        assert {"starttime", "endtime"}.issubset(np_datetime_cols)
 
 
 class TestEmptyBank:
@@ -1235,7 +1248,8 @@ class TestConcurrentReads:
     def wbank_executor(self, ta_bank, monkeypatch, instrumented_thread_executor):
         """ Return a wavebank with an instrumented executor. """
         monkeypatch.setattr(ta_bank, "executor", instrumented_thread_executor)
-        os.remove(ta_bank.index_path)
+        with suppress(FileNotFoundError):
+            os.remove(ta_bank.index_path)
         return ta_bank
 
     def test_concurrent_get_waveforms(self, wbank_executor):

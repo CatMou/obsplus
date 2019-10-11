@@ -98,6 +98,23 @@ class TestBankBasics:
         obsplus.__version__ = version
         return ebank
 
+    @pytest.fixture(scope="class")
+    def ebank_with_event_no_time(self, tmp_path_factory):
+        """ Create an event bank which has one file with no time. """
+        tmp_path = Path(tmp_path_factory.mktemp("basic"))
+        cat = obspy.read_events()
+        # clear origin from first event and add an empty one
+        cat[0].origins.clear()
+        new_origin = ev.Origin()
+        cat[0].origins.append(new_origin)
+        cat[0].preferred_origin_id = new_origin.resource_id
+        # now save the events
+        for num, event in enumerate(cat):
+            path = tmp_path / f"{num}.xml"
+            event.write(path, format="quakeml")
+        # init, update, return bank
+        return obsplus.EventBank(tmp_path).update_index()
+
     def test_has_attrs(self, bing_ebank):
         """ ensure all the required attrs exist """
         for attr in self.expected_attrs:
@@ -199,27 +216,23 @@ class TestBankBasics:
         out = ebank.update_index()
         assert out is ebank
 
-    def test_events_no_time(self, tmp_path):
+    def test_events_no_time(self, ebank_with_event_no_time):
         """ Tests for events which have no event time. """
-        cat = obspy.read_events()
-        # clear origin from first event and add an empty one
-        cat[0].origins.clear()
-        new_origin = ev.Origin()
-        cat[0].origins.append(new_origin)
-        cat[0].preferred_origin_id = new_origin.resource_id
-
-        from obsplus.utils import get_reference_time
-
-        breakpoint()
-        get_reference_time(cat[0])
-
-        catalog_to_directory(cat, tmp_path)
-        ebank = EventBank(tmp_path).update_index()
-        # not specifying a time should return all events
-        assert len(ebank.get_events()) == len(cat)
-        # but any restriction should exclude event with no time
-        assert len(ebank.get_events(starttime="2000-01-01")) == len(cat) - 1
-        breakpoint()
+        bank = ebank_with_event_no_time
+        # not starttime/endtime should return all row, one has NaT
+        ind = bank.read_index()
+        assert len(ind) == 3
+        assert ind["time"].isnull().sum() == 1
+        # if any starttime/endtime are specified it should not return NaT row
+        ind = bank.read_index(starttime="2012-01-01")
+        assert len(ind) == 2
+        assert not ind["time"].isnull().sum()
+        ind = bank.read_index(endtime="2020-01-01")
+        assert len(ind) == 2
+        assert not ind["time"].isnull().sum()
+        ind = bank.read_index(starttime="2000-01-01", endtime="2020-01-01")
+        assert len(ind) == 2
+        assert not ind["time"].isnull().sum()
 
 
 class TestReadIndexQueries:

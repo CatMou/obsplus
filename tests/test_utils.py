@@ -20,6 +20,7 @@ from obsplus.utils import (
     filter_df,
     get_distance_df,
     sequence_to_npdatetime,
+    value_to_npdatetime,
 )
 
 
@@ -383,6 +384,12 @@ class TestToNumpyDateTime:
         out = sequence_to_npdatetime((ts,))
         expected_out = (ts.to_datetime64(),)
         assert out == expected_out
+
+    def test_utc_to_large(self):
+        too_big = obspy.UTCDateTime("2600-01-01")
+        with pytest.warns(UserWarning):
+            out = value_to_npdatetime(too_big)
+        assert pd.Timestamp(out).year == 2262
 
 
 class TestDistanceDataframe:

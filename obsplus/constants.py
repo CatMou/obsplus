@@ -1,10 +1,10 @@
 """
 Constants used throughout obsplus
 """
-import concurrent.futures
 from collections import OrderedDict
 from os import cpu_count
 from pathlib import Path
+from types import MappingProxyType as MapProxy
 from typing import (
     Callable,
     Union,
@@ -46,6 +46,12 @@ PREFERRED = {
 }
 
 # ----- Extractor constants
+# types that indeicate time
+time_types = (pd.Timestamp, np.datetime64)
+
+# Mapping numpy time types to their internal representation
+_DATETIME_TYPE_MAP = {"datetime64[ns]": int, "timedelta64[ns]": int}
+
 # columns required for station data
 STATION_DTYPES = OrderedDict(
     network=str,
@@ -100,8 +106,16 @@ EVENT_DTYPES = OrderedDict(
 
 EVENT_COLUMNS = tuple(EVENT_DTYPES)
 
-# columns required for picks
+# Event types which are returned from EventBank
+EVENT_TYPES_OUTPUT = dict(EVENT_DTYPES)
+EVENT_TYPES_OUTPUT.pop("stations", None)
+EVENT_TYPES_OUTPUT["path"] = str
 
+# input types for EventBank
+INPUT_MAP = {"datetime64[ns]": int}
+EVENT_TYPES_INPUT = {i: INPUT_MAP.get(v, v) for i, v in EVENT_TYPES_OUTPUT.items()}
+
+# columns required for picks
 PICK_DTYPES = OrderedDict(
     resource_id=str,
     time="datetime64[ns]",
@@ -293,6 +307,22 @@ ARRIVAL_COLUMNS = (
     "channel",
 )
 
+# Waveform datatypes
+WAVEFORM_DTYPES = OrderedDict(
+    network=str,
+    station=str,
+    location=str,
+    channel=str,
+    starttime="datetime64[ns]",
+    endtime="datetime64[ns]",
+    sampling_period="timedelta64[ns]",
+)
+
+# The datatypes needed for putting waveform info into HDF5
+WAVEFORM_DTYPES_INPUT = MapProxy(
+    {i: _DATETIME_TYPE_MAP.get(v, v) for i, v in WAVEFORM_DTYPES.items()}
+)
+
 # keys used to identify UTC objects
 UTC_KEYS = ("creation_time", "time", "reference")
 
@@ -308,6 +338,16 @@ DIMS = ("stream_id", "seed_id", "time")
 # Small and BIG UTCDateTimes
 BIG_UTC = obspy.UTCDateTime("3000-01-01")
 SMALL_UTC = obspy.UTCDateTime("1970-01-01")
+
+# The smallest value an int64 can rep. (used as NaT by datetime64)
+MININT64 = np.iinfo(np.int64).min
+
+# The largest value an int64 can rep
+MAXINT64 = np.iinfo(np.int64).max
+
+# Large and small np.datetime64[ns] (used when defaults are needed)
+SMALLDT64 = np.datetime64(MININT64 + 5_000_000_000, "ns")
+LARGEDT64 = np.datetime64(MAXINT64 - 5_000_000_000, "ns")
 
 # path to where obsplus datasets are stored by default
 OPSDATA_PATH = Path().home() / "opsdata"

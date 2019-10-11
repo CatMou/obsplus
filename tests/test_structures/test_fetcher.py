@@ -10,6 +10,7 @@ from pathlib import Path
 import obspy
 import pandas as pd
 import pytest
+import numpy as np
 from obspy.core.event import Event, Origin
 
 import obsplus
@@ -142,7 +143,7 @@ class TestGeneric:
         wf1, wf2 = copied_fetcher
         inv_df = wf1.station_df
         start = inv_df.start_date.min()
-        end = start + 15
+        end = start + np.timedelta64(15, "s")
         # ensure the same data is returned
         ew1 = wf1.get_waveforms(starttime=start, endtime=end)
         ew2 = wf2.get_waveforms(starttime=start, endtime=end)
