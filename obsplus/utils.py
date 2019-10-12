@@ -55,6 +55,8 @@ from obsplus.constants import (
     TIME_COLUMNS,
     MAXINT64,
     time_types,
+    SMALLDT64,
+    LARGEDT64,
 )
 
 BASIC_NON_SEQUENCE_TYPE = (int, float, str, bool, type(None))
@@ -149,14 +151,18 @@ def get_instances(*args, **kwargs):
 
 
 def make_time_chunks(
-    utc1, utc2, duration, overlap=0.0
+    utc1: utc_able_type,
+    utc2: utc_able_type,
+    duration: Union[float, int],
+    overlap: Union[float, int] = 0.0,
 ) -> Generator[Tuple[obspy.UTCDateTime, obspy.UTCDateTime], None, None]:
     """
     Yield time intervals fitting in given datetime range.
 
-    Function to take two utc date time objects and create a generator to
+    Function takes two utc date time objects and create a generator to
     yield all time in between by intervals of duration. Overlap is number
-    of seconds at end of file
+    of seconds segment n will overlap into segment n + 1.
+
     Parameters
     ----------
     utc1 : obspy.UTCDateTime compatible object
@@ -167,6 +173,7 @@ def make_time_chunks(
         The duration of each chunk
     overlap : float
         The overlap each chunk should have (added at end)
+
     Yields
     -------
     (time1, time2)
@@ -178,8 +185,8 @@ def make_time_chunks(
     >>> out = make_time_chunks(t1, t2, 3600)
     >>> assert out == [t1, t1 + 3600, t2]
     """
-    utc1 = obspy.UTCDateTime(utc1)
-    utc2 = obspy.UTCDateTime(utc2)
+    utc1 = to_utc(utc1)
+    utc2 = to_utc(utc2)
     overlap = overlap or 0.0
     while utc1 < utc2:
         t2 = utc1 + duration + overlap
@@ -765,8 +772,8 @@ def filter_df(df: pd.DataFrame, **kwargs) -> np.array:
 def _filter_starttime_endtime(df, starttime=None, endtime=None):
     """ Filter dataframe on starttime and endtime. """
     bool_index = np.ones(len(df), dtype=bool)
-    t1 = UTC(starttime).timestamp if starttime is not None else -1 * np.inf
-    t2 = UTC(endtime).timestamp if endtime is not None else np.inf
+    t1 = to_datetime64(starttime) if starttime is not None else SMALLDT64
+    t2 = to_datetime64(endtime) if endtime is not None else LARGEDT64
     # get time columns
     start_col = getattr(df, "starttime", getattr(df, "start_date", None))
     end_col = getattr(df, "endtime", getattr(df, "end_date", None))
@@ -1038,11 +1045,11 @@ def sequence_to_npdatetime(
     Convert a Sequence of anything ObSpy's UTCDateTime can ingest to an
     array of np.float64.
     """
-    ns = np.array([value_to_npdatetime(x) for x in list_like])
+    ns = np.array([to_datetime64(x) for x in list_like])
     return pd.to_datetime(ns, unit="ns").values
 
 
-def value_to_npdatetime(value: utc_able_type) -> np.datetime64:
+def to_datetime64(value: utc_able_type, default=pd.NaT) -> np.datetime64:
     """
     Convert time value to a numpy datetime64.
 
@@ -1050,9 +1057,13 @@ def value_to_npdatetime(value: utc_able_type) -> np.datetime64:
     ----------
     value
         Any Value that can be interpreted as a time.
+    default
+        A value to return if value is null. Default
     """
     if pd.isnull(value) or not value:
-        return pd.NaT
+        if not pd.isnull(default):
+            return to_datetime64(default)
+        return default
     elif isinstance(value, np.datetime64):
         return value
     elif isinstance(value, pd.Timestamp):
@@ -1064,6 +1075,20 @@ def value_to_npdatetime(value: utc_able_type) -> np.datetime64:
         msg = f"{utc} is too large to represent with a int64, downcasting"
         warnings.warn(msg)
         return np.datetime64(np.sign(utc.ns) * (MAXINT64 - 100), "ns")
+
+
+def to_utc(value: utc_able_type) -> obspy.UTCDateTime:
+    """
+    Convert a value to a UTCDateTime object.
+
+    Parameters
+    ----------
+    value
+        Any value readable by ~:class:`obspy.UTCDateTime` or
+        ~:class:`numpy.datetime64`.
+    """
+    ns = to_datetime64(value).astype("datetime64[ns]").astype(int)
+    return obspy.UTCDateTime(ns=int(ns))
 
 
 @compose_docstring(time_keys=str(TIME_COLUMNS))
@@ -1084,7 +1109,7 @@ def dict_times_to_npdatetimes(
     """
     out = dict(input_dict)
     for time_key in set(input_dict) & set(time_keys):
-        out[time_key] = value_to_npdatetime(out[time_key])
+        out[time_key] = to_datetime64(out[time_key])
     return out
 
 
@@ -1107,7 +1132,7 @@ def dict_times_to_ns(
     out = dict(input_dict)
     for time_key in set(input_dict) & set(time_keys):
         if not isinstance(out[time_key], int):  # assume ints are ns
-            out[time_key] = value_to_npdatetime(out[time_key]).astype(int)
+            out[time_key] = to_datetime64(out[time_key]).astype(int)
     return out
 
 

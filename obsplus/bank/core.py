@@ -16,6 +16,7 @@ import obsplus
 from obsplus.constants import CPU_COUNT
 from obsplus.exceptions import BankDoesNotExistError
 from obsplus.interfaces import ProgressBar
+from obsplus.bank.utils import _IndexCache
 from obsplus.utils import iter_files, get_progressbar
 
 BankType = TypeVar("BankType", bound="_Bank")
@@ -50,6 +51,8 @@ class _Bank(ABC):
     _dtypes_input: Mapping = MapProxy({})
     # required dtypes for output from bank
     _dtypes_output: Mapping = MapProxy({})
+    # the index cache (can greatly reduce IO efforts)
+    _index_cache: Optional[_IndexCache] = None
 
     @abstractmethod
     def read_index(self, **kwargs) -> pd.DataFrame:
@@ -213,6 +216,13 @@ class _Bank(ABC):
         else:
             msg = f"{bar} is not a valid input for get_progress_bar"
             raise ValueError(msg)
+
+    def clear_cache(self):
+        """
+        Clear the index cache if the bank is using one.
+        """
+        if self._index_cache is not None:
+            self._index_cache.clear_cache()
 
     @property
     def _max_workers(self):

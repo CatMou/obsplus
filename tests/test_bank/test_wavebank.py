@@ -25,18 +25,13 @@ import obsplus.bank.utils
 import obsplus.bank.wavebank as sbank
 import obsplus.datasets.utils
 from obsplus.bank.wavebank import WaveBank
-from obsplus.constants import NSLC
+from obsplus.constants import NSLC, EMPTYTD64
 from obsplus.exceptions import BankDoesNotExistError
-from obsplus.utils import (
-    make_time_chunks,
-    iter_files,
-    get_reference_time,
-    is_time,
-    value_to_npdatetime,
-)
+from obsplus.utils import iter_files, get_reference_time, to_datetime64
 
 
 # ----------------------------------- Helper functions
+from obsplus.testing import ArchiveDirectory
 
 
 def count_calls(instance, bound_method, counter_attr):
@@ -61,115 +56,6 @@ def strip_processing(st: obspy.Stream) -> obspy.Stream:
     for tr in st:
         tr.stats.pop("processing")
     return st
-
-
-class ArchiveDirectory:
-    """ class for creating a simple archive """
-
-    def __init__(
-        self,
-        path,
-        starttime=None,
-        endtime=None,
-        sampling_rate=1,
-        duration=3600,
-        overlap=0,
-        gaps=None,
-        seed_ids=("TA.M17A..VHZ", "TA.BOB..VHZ"),
-    ):
-        self.path = path
-        if not os.path.exists(path):
-            os.makedirs(path)
-        self.starttime = starttime
-        self.endtime = endtime
-        self.sampling_rate = sampling_rate
-        self.duration = duration
-        self.overlap = overlap
-        self.seed_ids = seed_ids
-        self.gaps = gaps
-
-    def create_stream(self, starttime, endtime, seed_ids=None, sampling_rate=None):
-        """ create a waveforms from random data """
-        t1 = obspy.UTCDateTime(starttime)
-        t2 = obspy.UTCDateTime(endtime)
-        sr = sampling_rate or self.sampling_rate
-        ar_len = int((t2.timestamp - t1.timestamp) * sr)
-        st = obspy.Stream()
-        for seed in seed_ids or self.seed_ids:
-            n, s, l, c = seed.split(".")
-            meta = {
-                "sampling_rate": sr,
-                "starttime": t1,
-                "network": n,
-                "station": s,
-                "location": l,
-                "channel": c,
-            }
-            data = np.random.randn(ar_len)
-            tr = obspy.Trace(data=data, header=meta)
-            st.append(tr)
-        return st
-
-    def get_gap_stream(self, t1, t2, gaps):
-        """ return streams with gaps in it """
-        assert len(gaps) == 1
-        gap = gaps.iloc[0]
-        ts1, ts2 = t1.timestamp, t2.timestamp
-        # if gap covers time completely
-        if gap.start <= ts1 and gap.end >= ts2:
-            raise ValueError("gapped out")
-        # if gap is contained by time frame
-        elif gap.start > ts1 and gap.end < ts2:
-            st1 = self.create_stream(ts1, gap.start)
-            st2 = self.create_stream(gap.end, ts2)
-            return st1 + st2
-        # if gap only effects endtime
-        elif ts1 < gap.start < ts2 <= gap.end:
-            return self.create_stream(ts1, gap.start)
-        # if gap only effects starttime
-        elif gap.start <= ts1 < gap.end < ts2:
-            return self.create_stream(gap.end, ts2)
-        else:  # should not reach here
-            raise ValueError("something went very wrong!")
-
-    def create_directory(self):
-        """ create the directory with gaps in it """
-        # get a dataframe of the gaps
-        if self.gaps is not None:
-            df = pd.DataFrame(self.gaps, columns=["start", "end"])
-            df["start"] = df["start"].apply(lambda x: x.timestamp)
-            df["end"] = df["end"].apply(lambda x: x.timestamp)
-        else:
-            df = pd.DataFrame(columns=["start", "end"])
-
-        assert self.starttime and self.endtime, "needs defined times"
-        for t1, t2 in make_time_chunks(
-            self.starttime, self.endtime, self.duration, self.overlap
-        ):
-            # figure out of this time lies in a gap
-            gap = df[~((df.start >= t2) | (df.end <= t1))]
-            if not gap.empty:
-                try:
-                    st = self.get_gap_stream(t1, t2, gap)
-                except ValueError:
-                    continue
-            else:
-                st = self.create_stream(t1, t2)
-            finame = str(t1).split(".")[0].replace(":", "-") + ".mseed"
-            path = join(self.path, finame)
-            st.write(path, "mseed")
-
-    def create_directory_from_bulk_args(self, bulk_args):
-        """ Create a directory from bulk waveform arguments """
-        # ensure directory exists
-        path = Path(self.path)
-        path.mkdir(exist_ok=True, parents=True)
-        for (net, sta, loc, chan, t1, t2) in bulk_args:
-            nslc = ".".join([net, sta, loc, chan])
-            st = self.create_stream(t1, t2, (nslc,))
-            time_name = str(t1).split(".")[0].replace(":", "-") + ".mseed"
-            save_name = path / f"{net}_{sta}_{time_name}"
-            st.write(str(save_name), "mseed")
 
 
 # ------------------------------ Fixtures
@@ -312,8 +198,8 @@ class TestBankBasics:
         """ ensure the index has times consistent with traces in waveforms """
         index = default_wbank.read_index()
         st = obspy.read()
-        starttimes = [value_to_npdatetime(tr.stats.starttime) for tr in st]
-        endtimes = [value_to_npdatetime(tr.stats.endtime) for tr in st]
+        starttimes = [to_datetime64(tr.stats.starttime) for tr in st]
+        endtimes = [to_datetime64(tr.stats.endtime) for tr in st]
         assert min(starttimes) == index.starttime.min()
         assert max(endtimes) == index.endtime.max()
 
@@ -412,23 +298,24 @@ class TestGetIndex:
 
     def test_time_queries(self, ta_bank_index):
         """ test that time queries return all data in range """
-        t1 = obspy.UTCDateTime("2007-02-15T00-00-00")
-        t2 = t1.timestamp + 3600 * 60
+        t1 = np.datetime64("2007-02-15T00:00:00")
+        t2 = t1 + np.timedelta64(3600 * 60, "s")
+        one_hour = np.timedelta64(1, "h")
         index = ta_bank_index.read_index(starttime=t1, endtime=t2)
         # ensure no data in the index fall far out of bounds of the query time
         # some may be slightly out of bounds due to the buffers used
-        assert (index.endtime < (t1 - 3600)).sum() == 0
-        assert (index.starttime > (t2 + 3600)).sum() == 0
+        assert (index.endtime < (t1 - one_hour)).sum() == 0
+        assert (index.starttime > (t2 + one_hour)).sum() == 0
 
     def test_time_queries2(self, ta_bank_index):
         """ test that queries that are less than a file size work """
-        t1 = obspy.UTCDateTime("2007-02-16T01-01-01")
-        t2 = obspy.UTCDateTime("2007-02-16T01-01-15")
+        t1 = np.datetime64("2007-02-16T01:01:01")
+        t2 = np.datetime64("2007-02-16T01:01:15")
         index = ta_bank_index.read_index(starttime=t1, endtime=t2)
         starttime = index.starttime.min()
         endtime = index.endtime.max()
-        assert t1.timestamp >= starttime
-        assert t2.timestamp <= endtime
+        assert t1 >= starttime
+        assert t2 <= endtime
         assert not index.empty
 
     def test_crandall_query(self, crandall_dataset):
@@ -1105,6 +992,10 @@ class TestGetGaps:
 
     durations = np.array([y - x for x, y in gaps])
 
+    durations_timedelta = np.array(
+        [np.timedelta64(np.round(x * 1e9).astype(int), "ns") for x in durations]
+    )
+
     overlap = 0
 
     def _make_gappy_archive(self, path):
@@ -1133,7 +1024,6 @@ class TestGetGaps:
         # make sure index is updated after gaps are introduced
         if os.path.exists(bank.index_path):
             os.remove(bank.index_path)
-        bank._index_cache = obsplus.bank.utils._IndexCache(bank, 5)
         bank.update_index()
         return bank
 
@@ -1172,15 +1062,16 @@ class TestGetGaps:
         return default_wbank.get_uptime_df()
 
     # tests
-    def test_gaps_length(self, gap_df):
+    def test_gaps_length(self, gap_df, gappy_bank):
         """ ensure each of the gaps shows up in df """
         assert isinstance(gap_df, pd.DataFrame)
         assert not gap_df.empty
         group = gap_df.groupby(["network", "station", "location", "channel"])
+        sampling_period = gap_df["sampling_period"].iloc[0]
         for gnum, df in group:
             assert len(df) == len(self.gaps)
-            dif = abs(df.gap_duration - self.durations)
-            assert (dif < (1.5 * self.sampling_rate)).all()
+            dif = abs(df["gap_duration"] - self.durations_timedelta)
+            assert (dif < (1.5 * sampling_period)).all()
 
     def test_gappy_uptime_df(self, uptime_df):
         """ ensure the uptime df is of correct type and accurate """
@@ -1199,7 +1090,7 @@ class TestGetGaps:
         assert not df.empty, "uptime df is empty"
         assert len(df) == len(st)
         assert {tr.id for tr in st} == set(obsplus.utils.get_seed_id_series(df))
-        assert (df["gap_duration"] == 0).all()
+        assert (df["gap_duration"] == EMPTYTD64).all()
 
     def test_empty_directory(self, empty_bank):
         """ ensure an empty bank get_gaps returns and empty df with expected
@@ -1212,7 +1103,9 @@ class TestGetGaps:
         """ ensure the kemmerer bank returns an uptime df"""
         bank = kem_fetcher.waveform_client
         df = bank.get_uptime_df()
-        assert (df["uptime"] == df["duration"]).all()
+        diff = abs(df["uptime"] - df["duration"])
+        tolerance = np.timedelta64(1, "s")
+        assert (diff < tolerance).all()
 
     def test_gappy_and_contiguous_uptime(self, gappy_and_contiguous_bank):
         """
@@ -1358,8 +1251,8 @@ class TestSelectDoesntReturnSuperset:
         df = pd.DataFrame(index=range(9), columns=WaveBank.index_columns)
         df["station"] = stations
         df["network"] = "1"
-        df["starttime"] = obspy.UTCDateTime().timestamp
-        df["endtime"] = df["starttime"] + 3600
+        df["starttime"] = np.datetime64("now")
+        df["endtime"] = df["starttime"] + np.timedelta(3600, "s")
         return df
 
     @pytest.fixture(scope="class")

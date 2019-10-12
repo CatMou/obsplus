@@ -349,6 +349,9 @@ MAXINT64 = np.iinfo(np.int64).max
 SMALLDT64 = np.datetime64(MININT64 + 5_000_000_000, "ns")
 LARGEDT64 = np.datetime64(MAXINT64 - 5_000_000_000, "ns")
 
+# an empty time delta to rep. no time distance at all
+EMPTYTD64 = np.timedelta64(0, "s")
+
 # path to where obsplus datasets are stored by default
 OPSDATA_PATH = Path().home() / "opsdata"
 
@@ -401,7 +404,7 @@ station_clientable_type = Union[str, Path, Inventory]
 fetch_type = Union[wfcli_type, str]
 
 # time type (anything that can be fed to UTCDateTime)
-utc_time_type = Union[UTCDateTime, str, float]
+utc_time_type = Union[UTCDateTime, str, float, np.datetime64]
 
 # types for specifying starttimes
 starttime_type = Optional[Union[UTCDateTime, Mapping[Any, UTCDateTime]]]

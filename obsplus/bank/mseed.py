@@ -14,7 +14,6 @@ from obspy.io.mseed.core import DATATYPES, C, clibmseed
 
 def _get_lil(mseed_object):
     """ get the lil object """
-
     # Parse the headonly and reclen flags.
     unpack_data = 0
     details = False
@@ -73,10 +72,8 @@ def summarize_mseed(mseed_object):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         lil = _get_lil(mseed_object)
-
     traces = []
     current_id = lil.contents
-
     while True:
         # Init header with the essential information.
         header = {
@@ -94,15 +91,8 @@ def summarize_mseed(mseed_object):
         while True:
             header["starttime"] = current_segment.starttime * 1_000
             header["endtime"] = current_segment.endtime * 1_000
-            # header['sampling_rate'] = current_segment.samprate
             header["sampling_period"] = current_segment.hpdelta * 1_000
-            traces.append(header)
-            # samps = current_segment.samplecnt
-            # breakpoint()
-            # samp_period = int((1 / current_segment.samprate) * 1_000_000_000)
-            # header["endtime"] = header["starttime"] + (samps - 1) * samp_period
-            # traces.append(dict(header))
-
+            traces.append(dict(header))
             try:
                 current_segment = current_segment.next.contents
             except ValueError:

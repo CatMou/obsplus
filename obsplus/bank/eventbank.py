@@ -30,7 +30,6 @@ from obsplus.bank.utils import (
 from obsplus.constants import (
     EVENT_PATH_STRUCTURE,
     EVENT_NAME_STRUCTURE,
-    EVENT_DTYPES,
     get_events_parameters,
     bar_paramter_description,
     EVENT_TYPES_OUTPUT,

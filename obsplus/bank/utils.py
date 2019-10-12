@@ -8,7 +8,7 @@ import re
 import sqlite3
 import time
 import warnings
-from functools import singledispatch, lru_cache, partial
+from functools import singledispatch
 from os.path import join
 from typing import Optional, Sequence, Union
 
@@ -27,31 +27,17 @@ from obsplus.constants import (
     SMALLDT64,
     LARGEDT64,
     MININT64,
-    MAXINT64,
-    WAVEFORM_DTYPES_INPUT,
 )
 from obsplus.utils import (
     _get_event_origin_time,
     READ_DICT,
     dict_times_to_ns,
-    order_columns,
-    value_to_npdatetime,
+    to_datetime64,
 )
 from .mseed import summarize_mseed
 
-
 # functions for summarizing the various formats
-
-
-@lru_cache()
-def _get_summarizer(format, data_type="waveforms"):
-    """ return a summarizer function for format. """
-    format_summarizers = dict(mseed=summarize_mseed)
-    if format in format_summarizers:
-        return format_summarizers[format]
-    else:
-        return partial(_summarize_stream_generic, format=format)
-
+summarizing_functions = dict(mseed=summarize_mseed)
 
 # extensions
 WAVEFORM_EXT = ".mseed"
@@ -93,7 +79,7 @@ def _get_path(info, path, name, path_struct, name_strcut):
     return dict(path=path, filename=out_name)
 
 
-def _summarize_stream_generic(path, format=None):
+def summarize_generic_stream(path, format=None):
     st = _try_read_stream(path, format=format) or _try_read_stream(path) or []
     out = []
     for tr in st:
@@ -108,34 +94,19 @@ def _summarize_stream_generic(path, format=None):
     return out
 
 
-def _summarize_wave_file(path, format):
+def _summarize_wave_file(path, format, summarizer=None):
     """
     Summarize waveform files for indexing.
 
     Note: this function is a bit ugly, but it gets called *a lot* so be sure
     to profile before refactoring.
     """
-    return _get_summarizer(format=format, data_type="waveforms")(path)
-    # if format == "mseed":
-    #     try:
-    #         return summarize_mseed(path)
-    #     except Exception:
-    #         pass
-    # # specialized mseed function failed
-    # out_list = []
-    # st = _try_read_stream(path, format=format) or _try_read_stream(path) or []
-    # for tr in st:
-    #     out = {
-    #         "starttime": tr.stats.starttime.timestamp,
-    #         "endtime": tr.stats.endtime.timestamp,
-    #         "path": path,
-    #     }
-    #     out.update(dict((x, c) for x, c in zip(NSLC, tr.id.split("."))))
-    #     out_list.append(out)
-    # return out_list
-
-
-# TODO clean this up
+    if summarizer is not None:
+        try:
+            return summarizer(path)
+        except Exception:
+            pass
+    return summarize_generic_stream(path, format)
 
 
 def _summarize_trace(
@@ -225,8 +196,8 @@ class _IndexCache:
     def __call__(self, starttime, endtime, buffer, **kwargs):
         """ get start and end times, perform in kernel lookup """
         # get defaults if starttime or endtime is none
-        starttime = value_to_npdatetime(starttime or SMALLDT64)
-        endtime = value_to_npdatetime(endtime or LARGEDT64)
+        starttime = to_datetime64(starttime or SMALLDT64)
+        endtime = to_datetime64(endtime or LARGEDT64)
         # find out if the query falls within one cached times
         con1 = self.cache.t1 <= starttime
         con2 = self.cache.t2 >= endtime
@@ -446,9 +417,7 @@ def _try_read_stream(stream_path, format=None, **kwargs):
             msg = f"{stream_path} was read but is not of format {format}"
             warnings.warn(msg, UserWarning)
     finally:
-        if stt is not None and len(stt):
-            return stt
-    return None
+        return stt if len(stt) else None
 
 
 @singledispatch

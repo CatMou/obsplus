@@ -20,7 +20,7 @@ from obsplus.utils import (
     filter_df,
     get_distance_df,
     sequence_to_npdatetime,
-    value_to_npdatetime,
+    to_datetime64,
 )
 
 
@@ -247,7 +247,7 @@ class TestFilterDf:
     def test_filter_index(self, crandall_dataset):
         """ Tests for filtering index with filter index function. """
         # this is mainly here to test the time filtering, because the bank
-        # operations pass this of to the HDF5 kernel.
+        # operations pass this off to the HDF5 kernel.
         index = crandall_dataset.waveform_client.read_index(network="UU")
         t1 = index.starttime.mean()
         t2 = index.endtime.max()
@@ -388,7 +388,7 @@ class TestToNumpyDateTime:
     def test_utc_to_large(self):
         too_big = obspy.UTCDateTime("2600-01-01")
         with pytest.warns(UserWarning):
-            out = value_to_npdatetime(too_big)
+            out = to_datetime64(too_big)
         assert pd.Timestamp(out).year == 2262
 
 
