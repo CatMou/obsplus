@@ -7,14 +7,12 @@ from collections import namedtuple
 from functools import partial
 from typing import Optional, Union, Callable, Tuple, Dict
 
-import numpy as np
 import obspy
 import pandas as pd
 from obspy import Stream, UTCDateTime
 
 from obsplus import events_to_df, stations_to_df, picks_to_df
 from obsplus.bank.wavebank import WaveBank
-from obsplus.events.utils import get_event_client
 from obsplus.constants import (
     waveform_clientable_type,
     event_clientable_type,
@@ -26,11 +24,10 @@ from obsplus.constants import (
     EVENT_WAVEFORM_PATH_STRUCTURE,
     WAVEFORM_STRUCTURE,
     get_waveforms_parameters,
-    SMALLDT64,
     LARGEDT64,
 )
+from obsplus.events.utils import get_event_client
 from obsplus.stations.utils import get_station_client
-from obsplus.waveforms.utils import get_waveform_client
 from obsplus.utils import (
     make_time_chunks,
     register_func,
@@ -40,6 +37,7 @@ from obsplus.utils import (
     to_datetime64,
     to_timedelta64,
 )
+from obsplus.waveforms.utils import get_waveform_client
 
 EventStream = namedtuple("EventStream", "event_id stream")
 
@@ -194,7 +192,6 @@ class Fetcher:
             can be inferred.
         """
         # a dict for filling missing values in station df
-        fill_dict = {"start_date": SMALLDT64, "end_date": LARGEDT64}
         try:
             self.station_client = get_station_client(stations)
         except TypeError:
@@ -211,12 +208,9 @@ class Fetcher:
                     self.station_df = stations_to_df(self.event_client)
                 except TypeError:
                     self.station_df = None
-        # # fill start and end-date nulls with large times
-        # if self.station_df is not None:
-        #     for col, val in fill_dict.items():
-        #         self.station_df[col] = self.station_df[col].fillna(val)
 
     # ------------------------ continuous data fetching methods
+
     @compose_docstring(get_waveforms_parameters=get_waveforms_parameters)
     def get_waveforms(self, *args, **kwargs) -> Stream:
         """

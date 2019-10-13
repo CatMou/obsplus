@@ -20,7 +20,6 @@ from obsplus.utils import (
     filter_df,
     get_distance_df,
     to_datetime64,
-    to_datetime64,
 )
 
 

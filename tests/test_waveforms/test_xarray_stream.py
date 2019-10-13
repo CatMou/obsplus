@@ -16,7 +16,7 @@ import xarray as xr
 import obsplus
 from obsplus import obspy_to_array_dict, obspy_to_array
 from obsplus.constants import EMPTYTD64
-from obsplus.utils import to_datetime64, to_timedelta64, to_utc
+from obsplus.utils import to_datetime64, to_utc
 from obsplus.waveforms.xarray import netcdf2array
 from obsplus.waveforms.xarray.aggregate import aggregate, bin_array
 from obsplus.waveforms.xarray.io import read_pickle
