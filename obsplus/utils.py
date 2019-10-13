@@ -53,7 +53,6 @@ from obsplus.constants import (
     DISTANCE_COLUMNS,
     DISTANCE_DTYPES,
     TIME_COLUMNS,
-    MAXINT64,
     time_types,
     SMALLDT64,
     LARGEDT64,
@@ -1038,17 +1037,7 @@ def _column_contains(ser: pd.Series, str_sequence: Iterable[str]) -> pd.Series:
 # --- functions for dealing with time conversions (ugh)
 
 
-def sequence_to_npdatetime(
-    list_like: Union[Sequence[utc_able_type], pd.Series, np.ndarray],
-) -> np.ndarray:
-    """
-    Convert a Sequence of anything ObSpy's UTCDateTime can ingest to an
-    array of np.float64.
-    """
-    ns = np.array([to_datetime64(x) for x in list_like])
-    return pd.to_datetime(ns, unit="ns").values
-
-
+@singledispatch
 def to_datetime64(value: utc_able_type, default=pd.NaT) -> np.datetime64:
     """
     Convert time value to a numpy datetime64.
@@ -1071,10 +1060,36 @@ def to_datetime64(value: utc_able_type, default=pd.NaT) -> np.datetime64:
     try:
         utc = obspy.UTCDateTime(value)
         return np.datetime64(utc._ns, "ns")
-    except SystemError:  # the UTCDAteTIme is too big or small, convert
-        msg = f"{utc} is too large to represent with a int64, downcasting"
+    # the UTCDateTime is too big or small, convert
+    except (SystemError, OverflowError):
+        new = LARGEDT64 if np.sign(utc._ns) > 0 else SMALLDT64
+        msg = (
+            f"{utc} is too large to represent with a int64 with ns precision,"
+            f" downgrading to {new}"
+        )
         warnings.warn(msg)
-        return np.datetime64(np.sign(utc.ns) * (MAXINT64 - 100), "ns")
+        return new
+
+
+@to_datetime64.register(pd.Series)
+def _series_to_datetime(value, default=pd.NaT):
+    """ Convert a series to datetimes """
+    return value.apply(to_datetime64, default=default)
+
+
+@to_datetime64.register(np.ndarray)
+def _ndarray_to_datetime64(value, default=pd.NaT):
+    """ Convert an array to datetimes. """
+    ns = np.array([to_datetime64(x, default=default) for x in value])
+    return pd.to_datetime(ns, unit="ns").values
+
+
+@to_datetime64.register(list)
+@to_datetime64.register(tuple)
+def _sequence_to_datetime64(value, default=pd.NaT):
+    out = [to_datetime64(x, default=default) for x in value]
+    seq_type = type(value)
+    return seq_type(out)
 
 
 def to_utc(value: utc_able_type) -> obspy.UTCDateTime:
@@ -1089,6 +1104,32 @@ def to_utc(value: utc_able_type) -> obspy.UTCDateTime:
     """
     ns = to_datetime64(value).astype("datetime64[ns]").astype(int)
     return obspy.UTCDateTime(ns=int(ns))
+
+
+def to_timedelta64(
+    value: Union[float, int], default=np.timedelta64(0, "s")
+) -> np.timedelta64:
+    """
+    Convert a value to a timedelta[ns].
+
+    Numpy does not gracefully handle non-ints so we need to do some rounding
+    first.
+
+    Parameters
+    ----------
+    value
+        A float or an int to convert to datetime.
+
+    default
+        The default to return if the input value is not truthy.
+    """
+    try:
+        return np.timedelta64(value, "s")
+    except (ValueError, TypeError):
+        if not value:
+            return default
+        ns = to_utc(value)._ns
+        return np.timedelta64(ns, "ns")
 
 
 @compose_docstring(time_keys=str(TIME_COLUMNS))

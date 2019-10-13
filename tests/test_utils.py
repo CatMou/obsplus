@@ -19,7 +19,7 @@ from obsplus.utils import (
     filter_index,
     filter_df,
     get_distance_df,
-    sequence_to_npdatetime,
+    to_datetime64,
     to_datetime64,
 )
 
@@ -360,28 +360,29 @@ class TestToNumpyDateTime:
         """ Test converting simple UTCDateTimable things """
         test_input = ("2019-01-10 11-12", obspy.UTCDateTime("2019-01-10T12-12"), 100)
         expected = np.array([obspy.UTCDateTime(x)._ns for x in test_input])
-        out = sequence_to_npdatetime(test_input).astype(int)
+        out = np.array(to_datetime64(test_input)).astype(int)
         assert np.equal(expected, out).all()
 
     def test_with_nulls(self):
         """ Test for handling nulls. """
         test_input = (np.NaN, None, "", 15)
-        out = sequence_to_npdatetime(test_input)
+        out = np.array(to_datetime64(test_input))
         # first make sure empty values worked
         assert pd.isnull(out[:3]).all()
         assert out[-1].astype(int) == obspy.UTCDateTime(15)._ns
 
     def test_npdatetime64_as_input(self):
         """ This should also work on np.datetime64. """
-        test_input = (np.datetime64(1000, "s"), np.datetime64(100, "ns"))
-        out = sequence_to_npdatetime(test_input)
+        test_input = np.array((np.datetime64(1000, "s"), np.datetime64(100, "ns")))
+        out = to_datetime64(test_input)
+        assert isinstance(out, np.ndarray)
         assert (test_input == out).all()
 
     def test_pandas_timestamp(self):
         """ Timestamps should also work. """
         kwargs = dict(year=2019, month=10, day=11, hour=12)
         ts = pd.Timestamp(**kwargs)
-        out = sequence_to_npdatetime((ts,))
+        out = to_datetime64((ts,))
         expected_out = (ts.to_datetime64(),)
         assert out == expected_out
 
@@ -390,6 +391,12 @@ class TestToNumpyDateTime:
         with pytest.warns(UserWarning):
             out = to_datetime64(too_big)
         assert pd.Timestamp(out).year == 2262
+
+    def test_series_to_datetimes(self):
+        """ Series should be convertible to datetimes. """
+        ser = pd.Series([10, "2010-01-01"])
+        out = to_datetime64(ser)
+        assert isinstance(out, pd.Series)
 
 
 class TestDistanceDataframe:

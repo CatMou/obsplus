@@ -7,6 +7,7 @@ import inspect
 import os
 import json
 import shutil
+from contextlib import suppress
 from collections import OrderedDict
 from distutils.dir_util import copy_tree
 from functools import lru_cache
@@ -243,8 +244,10 @@ class DataSet(abc.ABC):
             # The dataset has not been discovered; try to load entry points
             cls._load_dataset_entry_points(name)
             if name in cls._entry_points:
-                cls._entry_points[name].load()
-                return load_dataset(name)
+                # If a plugin was register but no longer exists it can raise.
+                with suppress(ModuleNotFoundError):
+                    cls._entry_points[name].load()
+                    return load_dataset(name)
             msg = f"{name} is not in the known datasets {list(cls.datasets)}"
             raise ValueError(msg)
         if name in cls._loaded_datasets:

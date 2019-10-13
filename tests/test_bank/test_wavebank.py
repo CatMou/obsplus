@@ -1252,7 +1252,7 @@ class TestSelectDoesntReturnSuperset:
         df["station"] = stations
         df["network"] = "1"
         df["starttime"] = np.datetime64("now")
-        df["endtime"] = df["starttime"] + np.timedelta(3600, "s")
+        df["endtime"] = df["starttime"] + np.timedelta64(3600, "s")
         return df
 
     @pytest.fixture(scope="class")

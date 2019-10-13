@@ -33,7 +33,7 @@ from obsplus.constants import (
     MAGNITUDE_COLUMNS,
     EVENT_DTYPES,
 )
-from obsplus.utils import getattrs, get_seed_id_series
+from obsplus.utils import getattrs, get_seed_id_series, to_datetime64
 
 common_extractor_cols = {
     "agency_id",
@@ -806,7 +806,7 @@ class TestReadAmplitudes:
         assert floatify_dict(ser_dict) == floatify_dict(amp_dict)
 
     def test_creation_time(self, amplitude, amp_series):
-        assert amp_series["creation_time"] == obspy.UTCDateTime(
+        assert amp_series["creation_time"] == to_datetime64(
             amplitude.creation_info.creation_time
         )
         assert amp_series["author"] == amplitude.creation_info.author

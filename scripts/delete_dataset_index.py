@@ -12,7 +12,10 @@ if __name__ == "__main__":
     # first load the dataset entry points
     obsplus.DataSet._load_dataset_entry_points()
     for name in obsplus.DataSet._entry_points:
-        ds = obsplus.load_dataset(name)
+        try:
+            ds = obsplus.load_dataset(name)
+        except ValueError:
+            continue
         for source_path in SOURCE_PATHS:
             path = Path(getattr(ds, source_path))
             for index in path.rglob(".index.*"):

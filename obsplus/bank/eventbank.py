@@ -137,6 +137,8 @@ class EventBank(_Bank):
         self.executor = executor
         # initialize cache
         self._index_cache = _IndexCache(self, cache_size=cache_size)
+        # enforce min version upon init
+        self._enforce_min_version()
 
     @property
     def last_updated(self):

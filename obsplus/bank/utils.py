@@ -417,7 +417,7 @@ def _try_read_stream(stream_path, format=None, **kwargs):
             msg = f"{stream_path} was read but is not of format {format}"
             warnings.warn(msg, UserWarning)
     finally:
-        return stt if len(stt) else None
+        return stt if stt else None
 
 
 @singledispatch

@@ -166,6 +166,8 @@ class WaveBank(_Bank):
         # initialize cache
         self._index_cache = _IndexCache(self, cache_size=cache_size)
         self._concurrent = concurrent_updates
+        # enforce min version upon init
+        self._enforce_min_version()
 
     # ----------------------- index related stuff
 

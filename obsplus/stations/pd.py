@@ -1,3 +1,6 @@
+"""
+Pandas functionality for stations stuff.
+"""
 import os
 from pathlib import Path
 
@@ -19,11 +22,14 @@ from obsplus.utils import apply_to_files_or_skip, get_instances
 # attributes from channel to extract
 
 stations_to_df = DataFrameExtractor(
-    Channel, STATION_COLUMNS, column_funcs=standard_column_transforms
+    Channel,
+    STATION_COLUMNS,
+    column_funcs=standard_column_transforms,
+    dtypes=STATION_DTYPES,
 )
 
 
-@stations_to_df.extractor(dtypes=STATION_DTYPES)
+@stations_to_df.extractor()
 def _extract_from_channels(channel):
     """ extract info from channels. """
     return {x: getattr(channel, x) for x in STATION_COLUMNS[5:]}
