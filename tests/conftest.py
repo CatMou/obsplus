@@ -280,17 +280,6 @@ def bingham_inventory(bingham_dataset):
 def bingham_catalog(bingham_dataset):
     """ load the bingham tests case """
     cat = bingham_dataset.event_client.get_events()
-
-    if not len(cat):
-
-        import os
-
-        ebank = obsplus.EventBank(bingham_dataset.event_path)
-        os.remove(ebank.index_path)
-
-        breakpoint()
-        ebank.update_index()
-
     assert len(cat), "catalog is empty"
     return cat
 

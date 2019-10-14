@@ -220,6 +220,7 @@ class DataSet(abc.ABC):
     def _save_data_path(self, path=None):
         """ Save the path to where the data where downloaded in source folder. """
         path = Path(path or self._path_to_saved_path_file)
+        path.parent.mkdir(exist_ok=True, parents=True)
         with path.open("w") as fi:
             fi.write(str(self.data_path))
 
