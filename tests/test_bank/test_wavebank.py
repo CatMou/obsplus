@@ -27,7 +27,7 @@ import obsplus.datasets.utils
 from obsplus.bank.wavebank import WaveBank
 from obsplus.constants import NSLC, EMPTYTD64
 from obsplus.exceptions import BankDoesNotExistError
-from obsplus.utils import iter_files, get_reference_time, to_datetime64
+from obsplus.utils import iter_files, get_reference_time, to_datetime64, to_timedelta64
 
 
 # ----------------------------------- Helper functions
@@ -992,9 +992,7 @@ class TestGetGaps:
 
     durations = np.array([y - x for x, y in gaps])
 
-    durations_timedelta = np.array(
-        [np.timedelta64(np.round(x * 1e9).astype(int), "ns") for x in durations]
-    )
+    durations_timedelta = np.array([to_timedelta64(float(x)) for x in durations])
 
     overlap = 0
 
