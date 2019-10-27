@@ -20,7 +20,6 @@ from typing import (
 import numpy as np
 import obspy
 import pandas as pd
-import xarray as xr
 from obspy import Stream, Trace, UTCDateTime, Inventory, Catalog
 from obspy.core.event import Event
 from obspy.core.util import AttribDict
@@ -380,7 +379,7 @@ CPU_COUNT = cpu_count() or 4  # fallback to four is None is returned
 stream_proc_type = Callable[[Stream], Stream]
 
 # The obspy types for waveform data
-wave_type = Union[Stream, Trace, xr.DataArray]
+wave_type = Union[Stream, Trace]
 
 # Type can can be turned into a UTCDateTime
 utc_able_type = Union[str, UTCDateTime, float, np.datetime64, pd.Timestamp]
@@ -433,9 +432,6 @@ event_time_type = Union[UTCDateTime, Catalog, Event, float]
 
 # availability output type (return from obspy earthworm client availability)
 availability_type = List[Tuple[str, str, str, str, UTCDateTime, UTCDateTime]]
-
-# xarray types
-xr_type = Union[xr.DataArray, xr.Dataset]
 
 # basic types
 basic_types = Optional[Union[int, float, str, bool]]
