@@ -43,6 +43,7 @@ from obsplus.constants import (
     WAVEFORM_DTYPES,
     WAVEFORM_DTYPES_INPUT,
     EMPTYTD64,
+    bulk_waveform_arg_type,
 )
 from obsplus.utils import (
     compose_docstring,
@@ -439,7 +440,10 @@ class WaveBank(_Bank):
     # ------------------------ get waveform related methods
 
     def get_waveforms_bulk(
-        self, bulk: List[str], index: Optional[pd.DataFrame] = None, **kwargs
+        self,
+        bulk: bulk_waveform_arg_type,
+        index: Optional[pd.DataFrame] = None,
+        **kwargs,
     ) -> Stream:
         """
         Get a large number of waveforms with a bulk request.

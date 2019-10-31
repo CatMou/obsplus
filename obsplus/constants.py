@@ -445,6 +445,9 @@ series_func_type = Callable[[pd.Series], Union[pd.Series, np.ndarray]]
 # type for mapping of functions to apply over callables
 column_function_map_type = Mapping[str, series_func_type]
 
+# types for bulk waveform requests
+bulk_waveform_arg_type = List[Tuple[str, str, str, str, UTCDateTime, UTCDateTime]]
+
 # -------------------------- events validation constants
 
 
