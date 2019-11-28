@@ -430,8 +430,10 @@ column_function_map_type = Mapping[str, series_func_type]
 # types for bulk waveform requests
 bulk_waveform_arg_type = List[Tuple[str, str, str, str, UTCDateTime, UTCDateTime]]
 
-# -------------------------- events validation constants
+# types which can be used to slice a numpy array
+slice_types = Union[int, slice, List[int], Tuple[int, ...]]
 
+# -------------------------- events validation constants
 
 # null quantities for nslc codes
 NULL_SEED_CODES = (None, "--", "None", "nan", "null", np.nan)
