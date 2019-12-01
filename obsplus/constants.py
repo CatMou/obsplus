@@ -680,3 +680,15 @@ bar
     If a custom progress bar is to be used, it must have an `update`
     and `finish` method.
 """
+
+# description for waveframe's starttime/endtime parameters
+starttime_endtime_params = """
+starttime
+    Either a single value, or an array of values, indicating the
+    start time of the new trace. Can also be ``np.timedelta64``
+    object to reference a start time relative to current starttimes.
+endtime
+    Either a single value, or an array of values, indicating the
+    end time of the new trace. Can also be ``np.timedelta64``
+    object to reference an end time relative to current endtime.
+"""
